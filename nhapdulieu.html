@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhập Dữ Liệu Học Sinh — Victoria Thăng Long 3</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:      #111827;
+            --card:    #1F2937;
+            --card2:   #283347;
+            --border:  rgba(255,255,255,0.08);
+            --border2: rgba(255,255,255,0.13);
+            --indigo:  #6366F1;
+            --indigo2: #818CF8;
+            --indigo3: #4F46E5;
+            --indigo-bg: rgba(99,102,241,0.1);
+            --teal:    #14B8A6;
+            --amber:   #F59E0B;
+            --text:    #F1F5F9;
+            --text-2:  #94A3B8;
+            --text-3:  #64748B;
+            --red:     #F87171;
+            --green:   #34D399;
+            --radius:  12px;
+            --shadow:  0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        /* subtle grid */
+        body::before {
+            content: '';
+            position: fixed; inset: 0; pointer-events: none; z-index: 0;
+            background-image:
+                linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px);
+            background-size: 44px 44px;
+        }
+
+        /* ═══ HEADER ═══ */
+        .header {
+            background: rgba(17,24,39,0.95);
+            border-bottom: 1px solid var(--border2);
+            backdrop-filter: blur(10px);
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header-top {
+            height: 4px;
+            background: linear-gradient(90deg, var(--indigo3), var(--indigo), var(--indigo2), var(--teal));
+        }
+        .header-inner {
+            max-width: 1100px; margin: 0 auto;
+            padding: 0 24px; height: 60px;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        }
+        .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+        .brand-logo {
+            width: 38px; height: 38px; flex-shrink: 0;
+            background: var(--indigo-bg);
+            border: 1px solid rgba(99,102,241,0.35);
+            border-radius: 9px;
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+        }
+        .brand-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .brand-sub { font-size: 11px; color: var(--text-3); }
+        .breadcrumb {
+            display: flex; align-items: center; gap: 7px;
+            font-size: 12px; color: var(--text-3); flex-shrink: 0;
+        }
+        .breadcrumb a { color: var(--text-3); text-decoration: none; transition: color .2s; }
+        .breadcrumb a:hover { color: var(--indigo2); }
+        .breadcrumb .sep { opacity: .4; }
+        .breadcrumb .cur {
+            color: var(--indigo2);
+            background: var(--indigo-bg);
+            padding: 3px 10px; border-radius: 12px; font-weight: 500;
+        }
+
+        /* ═══ LOGIN ═══ */
+        #login-screen {
+            display: flex; align-items: center; justify-content: center;
+            min-height: calc(100vh - 68px); padding: 24px 16px;
+            position: relative; z-index: 1;
+        }
+        .login-box {
+            background: var(--card);
+            border: 1px solid var(--border2);
+            border-top: 3px solid var(--indigo);
+            border-radius: 20px;
+            padding: 40px 36px; width: 100%; max-width: 400px;
+            box-shadow: 0 20px 60px rgba(0,0,0,.4);
+            animation: up .4s ease both;
+        }
+        @keyframes up { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+        .login-ico {
+            width: 60px; height: 60px; margin: 0 auto 18px;
+            background: var(--indigo-bg); border: 1px solid rgba(99,102,241,.3);
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center; font-size: 26px;
+        }
+        .login-box h2 { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+        .login-sub { text-align: center; color: var(--text-3); font-size: 13px; margin-bottom: 26px; }
+        .field { position: relative; margin-bottom: 12px; }
+        .field-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 15px; pointer-events: none; }
+        .inp {
+            width: 100%; padding: 12px 13px 12px 40px;
+            background: rgba(255,255,255,.04); border: 1.5px solid var(--border2);
+            border-radius: var(--radius); color: var(--text);
+            font-family: inherit; font-size: 14px; outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .inp::placeholder { color: var(--text-3); }
+        .inp:focus { border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(99,102,241,.15); background: rgba(99,102,241,.05); }
+        .btn-primary {
+            width: 100%; padding: 13px; margin-top: 6px;
+            background: var(--indigo); color: #fff; border: none; border-radius: var(--radius);
+            font-family: inherit; font-size: 15px; font-weight: 600;
+            cursor: pointer; transition: background .2s, transform .15s;
+            box-shadow: 0 4px 16px rgba(99,102,241,.4);
+        }
+        .btn-primary:hover { background: var(--indigo3); transform: translateY(-1px); }
+        .error-msg {
+            display: none; margin-top: 12px;
+            background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3);
+            border-radius: 8px; color: var(--red); font-size: 13px; text-align: center; padding: 10px 14px;
+        }
+
+        /* ═══ APP ═══ */
+        #app-screen { display: none; position: relative; z-index: 1; }
+        .app-inner { max-width: 1100px; margin: 0 auto; padding: 24px 24px 40px; }
+
+        .page-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+        .page-title { font-size: 22px; font-weight: 700; }
+        .page-date { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+        .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-ghost {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 14px; border-radius: 9px;
+            border: 1.5px solid var(--border2); background: rgba(255,255,255,.03); color: var(--text-2);
+            font-family: inherit; font-size: 13px; font-weight: 500;
+            cursor: pointer; text-decoration: none; transition: all .2s;
+        }
+        .btn-ghost:hover { border-color: var(--indigo2); color: var(--indigo2); background: var(--indigo-bg); }
+        .btn-ghost.red { border-color: rgba(248,113,113,.3); color: var(--red); }
+        .btn-ghost.red:hover { background: rgba(248,113,113,.08); border-color: var(--red); }
+
+        /* status */
+        .status-bar {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 16px; border-radius: var(--radius);
+            background: var(--card); border: 1px solid var(--border2);
+            border-left: 4px solid var(--indigo);
+            margin-bottom: 18px; font-size: 14px; color: var(--text-2);
+            box-shadow: var(--shadow); transition: border-left-color .3s;
+        }
+        .status-bar.ok    { border-left-color: var(--green); }
+        .status-bar.err   { border-left-color: var(--red); }
+        .status-bar.save  { border-left-color: var(--amber); }
+        .s-ico { font-size: 17px; }
+        .s-txt { flex: 1; font-weight: 500; }
+
+        /* stats */
+        .stats { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+        .stat {
+            flex: 1; min-width: 100px;
+            background: var(--card); border: 1px solid var(--border2);
+            border-radius: 12px; padding: 14px 16px; text-align: center;
+        }
+        .stat-n { font-size: 26px; font-weight: 700; color: var(--indigo2); line-height: 1; }
+        .stat-l { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+
+        /* main grid */
+        .grid { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: start; }
+
+        /* camera */
+        .cam-card {
+            background: var(--card); border: 1px solid var(--border2);
+            border-radius: 16px; overflow: hidden; box-shadow: var(--shadow);
+        }
+        .cam-head {
+            padding: 12px 16px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 8px;
+            font-size: 13px; font-weight: 600; color: var(--text-2);
+        }
+        .cam-lbl-wrap { flex: 1; }
+        .live-pill {
+            display: flex; align-items: center; gap: 4px;
+            background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.25);
+            padding: 3px 9px; border-radius: 12px;
+            font-size: 11px; font-weight: 700; color: var(--red); letter-spacing: .5px;
+            opacity: 0; transition: opacity .5s;
+        }
+        .live-pill.on { opacity: 1; }
+        .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); animation: blink 1.2s infinite; }
+        @keyframes blink { 0%,100%{opacity:1}50%{opacity:.2} }
+        .cam-body { position: relative; background: #080F18; }
+        .cam-body video { display: block; width: 100%; aspect-ratio: 4/3; object-fit: cover; }
+        .cam-body::before,.cam-body::after,.cb-bl,.cb-br {
+            content:''; position:absolute; width:20px; height:20px;
+            border-color:var(--indigo2); border-style:solid; z-index:2;
+        }
+        .cam-body::before { top:9px;left:9px; border-width:2px 0 0 2px; border-radius:3px 0 0 0; }
+        .cam-body::after  { top:9px;right:9px; border-width:2px 2px 0 0; border-radius:0 3px 0 0; }
+        .cb-bl { bottom:9px;left:9px; border-width:0 0 2px 2px; border-radius:0 0 0 3px; }
+        .cb-br { bottom:9px;right:9px; border-width:0 2px 2px 0; border-radius:0 0 3px 0; }
+        .cam-foot { padding:9px 14px; border-top:1px solid var(--border); font-size:12px; color:var(--text-3); text-align:center; }
+
+        /* form */
+        .form-panel { display: flex; flex-direction: column; gap: 14px; }
+        .form-card {
+            background: var(--card); border: 1px solid var(--border2);
+            border-radius: 14px; padding: 22px 20px; box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 10px; font-weight: 700; letter-spacing: 1.8px;
+            text-transform: uppercase; color: var(--indigo2); margin-bottom: 16px;
+        }
+        .fg { margin-bottom: 13px; }
+        .fg:last-of-type { margin-bottom: 0; }
+        .flabel {
+            display: block; font-size: 11px; font-weight: 700;
+            letter-spacing: .6px; text-transform: uppercase;
+            color: var(--text-3); margin-bottom: 7px;
+        }
+        .flabel .req { color: var(--red); margin-left: 2px; }
+        .finp {
+            width: 100%; padding: 11px 13px;
+            background: rgba(255,255,255,.04); border: 1.5px solid var(--border2);
+            border-radius: 9px; color: var(--text);
+            font-family: inherit; font-size: 14px; outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .finp::placeholder { color: var(--text-3); }
+        .finp:focus { border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(99,102,241,.15); background: rgba(99,102,241,.04); }
+        .divider { height: 1px; background: var(--border); margin: 14px 0; }
+        #btnSave {
+            width: 100%; padding: 13px;
+            background: var(--indigo); color: #fff; border: none; border-radius: 10px;
+            font-family: inherit; font-size: 15px; font-weight: 600;
+            cursor: pointer; transition: background .2s, transform .15s, box-shadow .2s;
+            box-shadow: 0 4px 16px rgba(99,102,241,.4);
+            display: flex; align-items: center; justify-content: center; gap: 7px;
+        }
+        #btnSave:hover:not(:disabled) { background: var(--indigo3); transform: translateY(-1px); box-shadow: 0 7px 22px rgba(99,102,241,.5); }
+        #btnSave:disabled { background: rgba(255,255,255,.07); color: var(--text-3); box-shadow: none; cursor: not-allowed; }
+
+        .tips {
+            background: var(--indigo-bg); border: 1px solid rgba(99,102,241,.18);
+            border-radius: 12px; padding: 16px 18px;
+        }
+        .tips-title { font-size: 10px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: var(--indigo2); margin-bottom: 12px; }
+        .tip { display: flex; gap: 8px; font-size: 12.5px; color: var(--text-2); margin-bottom: 8px; line-height: 1.45; }
+        .tip:last-child { margin-bottom: 0; }
+
+        /* footer */
+        footer {
+            background: var(--card); border-top: 1px solid var(--border);
+            text-align: center; padding: 18px 24px;
+            font-size: 12px; color: var(--text-3);
+        }
+        footer strong { color: var(--indigo2); font-weight: 600; }
+
+        /* ═══ RESPONSIVE ═══ */
+        @media (max-width: 760px) {
+            .header-inner { padding: 0 16px; }
+            .brand-sub { display: none; }
+            .app-inner { padding: 16px 14px 32px; }
+            .page-title { font-size: 18px; }
+            .grid { grid-template-columns: 1fr; }
+            .stats { flex-wrap: nowrap; }
+        }
+        @media (max-width: 480px) {
+            .breadcrumb .bc-link { display: none; }
+            .login-box { padding: 30px 20px; }
+            .stats .stat { padding: 11px 10px; }
+            .stat-n { font-size: 22px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+    <div class="header-top"></div>
+    <div class="header-inner">
+        <div class="brand">
+            <div class="brand-logo">🏫</div>
+            <div>
+                <div class="brand-name">Victoria Thăng Long 3</div>
+                <div class="brand-sub">Cổng Quản Trị Hệ Thống</div>
+            </div>
+        </div>
+        <nav class="breadcrumb">
+            <a href="quet_y_te.html" class="bc-link">🏥 Trạm Quét</a>
+            <span class="sep">›</span>
+            <span class="cur">⚙️ Nhập Liệu</span>
+        </nav>
+    </div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen">
+    <div class="login-box">
+        <div class="login-ico">🛡️</div>
+        <h2>Đăng nhập Quản trị</h2>
+        <p class="login-sub">Chỉ quản trị viên được phép nhập liệu học sinh</p>
+        <div class="field">
+            <span class="field-ico">✉️</span>
+            <input type="email" id="email" class="inp" placeholder="Email quản trị viên">
+        </div>
+        <div class="field">
+            <span class="field-ico">🔒</span>
+            <input type="password" id="password" class="inp" placeholder="Mật khẩu" onkeydown="if(event.key==='Enter')login()">
+        </div>
+        <button class="btn-primary" id="btn-login" onclick="login()">Đăng nhập</button>
+        <div id="login-error" class="error-msg">⚠️ Sai tài khoản hoặc mật khẩu!</div>
+    </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen">
+    <div class="app-inner">
+        <div class="page-top">
+            <div>
+                <div class="page-title">Nhập Dữ Liệu Khuôn Mặt</div>
+                <div class="page-date" id="cur-date"></div>
+            </div>
+            <div class="btn-row">
+                <a href="quet_y_te.html" class="btn-ghost">← Trạm Quét</a>
+                <button class="btn-ghost red" onclick="logout()">🚪 Đăng xuất</button>
+            </div>
+        </div>
+
+        <div class="status-bar" id="status-bar">
+            <span class="s-ico">⏳</span>
+            <span class="s-txt" id="s-txt">Đang khởi tạo hệ thống AI...</span>
+        </div>
+
+        <div class="stats">
+            <div class="stat"><div class="stat-n" id="cnt-today">—</div><div class="stat-l">Nhập hôm nay</div></div>
+            <div class="stat"><div class="stat-n" id="cnt-total">—</div><div class="stat-l">Tổng học sinh</div></div>
+            <div class="stat"><div class="stat-n" id="ai-st">⏳</div><div class="stat-l">Trạng thái AI</div></div>
+        </div>
+
+        <div class="grid">
+            <div class="cam-card">
+                <div class="cam-head">
+                    <span>📷</span>
+                    <span class="cam-lbl-wrap">Camera Nhập Liệu</span>
+                    <div class="live-pill" id="live-pill"><div class="live-dot"></div>LIVE</div>
+                </div>
+                <div class="cam-body">
+                    <video id="video" autoplay muted playsinline></video>
+                    <div class="cb-bl"></div><div class="cb-br"></div>
+                </div>
+                <div class="cam-foot">Đặt khuôn mặt học sinh chính giữa — nhìn thẳng — đủ sáng</div>
+            </div>
+
+            <div class="form-panel">
+                <div class="form-card">
+                    <div class="card-title">Thông tin học sinh</div>
+                    <div class="fg">
+                        <label class="flabel">Họ và tên <span class="req">*</span></label>
+                        <input type="text" id="tenHS" class="finp" placeholder="VD: Nguyễn Thị Lan Anh">
+                    </div>
+                    <div class="fg">
+                        <label class="flabel">Lớp <span class="req">*</span></label>
+                        <input type="text" id="lopHS" class="finp" placeholder="VD: 3A2, 5B1...">
+                    </div>
+                    <div class="divider"></div>
+                    <button id="btnSave" disabled><span>📸</span> Chụp & Lưu Lên Hệ Thống</button>
+                </div>
+                <div class="tips">
+                    <div class="tips-title">💡 Lưu ý khi chụp</div>
+                    <div class="tip"><span>✅</span><span>Nhìn thẳng, không nghiêng đầu</span></div>
+                    <div class="tip"><span>💡</span><span>Đảm bảo mặt được chiếu sáng rõ</span></div>
+                    <div class="tip"><span>🚫</span><span>Không đeo khẩu trang hoặc kính đen</span></div>
+                    <div class="tip"><span>🔄</span><span>Chụp lại để cập nhật nếu nhận sai</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <strong>Victoria Thăng Long 3</strong> · Cổng Quản Trị Nhập Liệu · VIC Group © 2025
+</footer>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyC6WjhvvRqT-yUv5tj54wyyBNlN8dWZZB0",
+        authDomain: "yte-hoc-duong.firebaseapp.com",
+        projectId: "yte-hoc-duong",
+        storageBucket: "yte-hoc-duong.firebasestorage.app",
+        messagingSenderId: "400060011950",
+        appId: "1:400060011950:web:a8e6512ab6d18b29cde43f"
+    };
+
+    const app  = initializeApp(firebaseConfig);
+    const db   = getFirestore(app);
+    const auth = getAuth(app);
+    const video   = document.getElementById('video');
+    const btnSave = document.getElementById('btnSave');
+    let todayCount = 0;
+
+    document.getElementById('cur-date').innerText =
+        new Date().toLocaleDateString('vi-VN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+    function setStatus(ico, txt, type='') {
+        const bar = document.getElementById('status-bar');
+        bar.querySelector('.s-ico').innerText = ico;
+        document.getElementById('s-txt').innerText = txt;
+        bar.className = 'status-bar' + (type ? ' '+type : '');
+    }
+
+    onAuthStateChanged(auth, u => {
+        if (u) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-screen').style.display = 'block';
+            initAI();
+        } else {
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('app-screen').style.display = 'none';
+        }
+    });
+
+    window.login = () => {
+        const btn = document.getElementById('btn-login');
+        btn.textContent = 'Đang xác thực...'; btn.style.opacity = '.7';
+        signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value)
+            .then(() => { btn.textContent = 'Đăng nhập'; btn.style.opacity = '1'; })
+            .catch(() => {
+                document.getElementById('login-error').style.display = 'block';
+                btn.textContent = 'Đăng nhập'; btn.style.opacity = '1';
+            });
+    };
+
+    window.logout = () => {
+        if (confirm('Bạn muốn đăng xuất?')) signOut(auth).then(()=>location.reload());
+    };
+
+    async function initAI() {
+        setStatus('🧠','Đang tải AI nhận diện khuôn mặt...');
+        try {
+            const snap = await getDocs(collection(db,'DuLieuKhuonMat'));
+            document.getElementById('cnt-total').innerText = snap.size;
+        } catch { document.getElementById('cnt-total').innerText = '?'; }
+        document.getElementById('cnt-today').innerText = todayCount;
+
+        const W = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+        await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(W),
+            faceapi.nets.faceLandmark68Net.loadFromUri(W),
+            faceapi.nets.faceRecognitionNet.loadFromUri(W)
+        ]);
+        document.getElementById('ai-st').innerText = '✅';
+        startVideo();
+    }
+
+    function startVideo() {
+        navigator.mediaDevices.getUserMedia({video:{}})
+            .then(s => {
+                video.srcObject = s;
+                document.getElementById('live-pill').classList.add('on');
+                btnSave.disabled = false;
+                setStatus('✅','Sẵn sàng — Nhập thông tin và nhấn Chụp.','ok');
+            })
+            .catch(err => setStatus('❌','Lỗi Camera: '+err,'err'));
+    }
+
+    btnSave.addEventListener('click', async () => {
+        const ten = document.getElementById('tenHS').value.trim();
+        const lop = document.getElementById('lopHS').value.trim();
+        if (!ten||!lop) { alert('Vui lòng nhập đầy đủ Tên và Lớp!'); return; }
+
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<span>⏳</span> Đang phân tích...';
+        setStatus('🔍',`Đang phân tích khuôn mặt của ${ten}...`,'save');
+
+        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+            .withFaceLandmarks().withFaceDescriptor();
+
+        if (det) {
+            setStatus('💾','Đang lưu lên Cloud...','save');
+            try {
+                const id = `${lop} - ${ten}`;
+                await setDoc(doc(db,'DuLieuKhuonMat',id),{ten,lop,descriptor:Array.from(det.descriptor),ngayCapNhat:new Date()});
+                todayCount++;
+                document.getElementById('cnt-today').innerText = todayCount;
+                const snap = await getDocs(collection(db,'DuLieuKhuonMat'));
+                document.getElementById('cnt-total').innerText = snap.size;
+                setStatus('✅',`Đã lưu: ${ten} — ${lop}`,'ok');
+                alert(`✅ Thành công! Cập nhật: ${id}`);
+                document.getElementById('tenHS').value = '';
+            } catch {
+                setStatus('❌','Lỗi Firebase! Kiểm tra quyền ghi.','err');
+                alert('❌ Lỗi Firebase!');
+            }
+        } else {
+            setStatus('⚠️','Không thấy khuôn mặt — nhìn thẳng camera!','err');
+            alert('⚠️ Không nhận diện được mặt. Hãy nhìn thẳng và đủ sáng!');
+        }
+        btnSave.disabled = false;
+        btnSave.innerHTML = '<span>📸</span> Chụp & Lưu Lên Hệ Thống';
+    });
+</script>
+</body>
+</html>
