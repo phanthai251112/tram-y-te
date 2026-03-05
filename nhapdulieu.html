@@ -340,6 +340,12 @@
         }
         .btn-dup-overwrite:hover { opacity: .85; }
 
+        .btn-ghost.green {
+            border-color: rgba(52,211,153,.4); color: #059669;
+            background: rgba(52,211,153,.08);
+        }
+        .btn-ghost.green:hover { background: rgba(52,211,153,.15); border-color: #10b981; color: #047857; }
+
         /* footer */
         footer {
             background: var(--card); border-top: 1px solid var(--border);
@@ -412,6 +418,7 @@
             </div>
             <div class="btn-row">
                 <a href="index.html" class="btn-ghost">← Trạm Quét</a>
+                <a href="https://docs.google.com/spreadsheets/d/1ffppAcdhjrrCX7U7DEGVkijaxu7wWNJ5_3Mg2bY9ZPQ/edit?hl=vi&gid=925481215#gid=925481215" target="_blank" class="btn-ghost green">📊 Kết quả học sinh</a>
                 <button class="btn-ghost red" onclick="logout()">🚪 Đăng xuất</button>
             </div>
         </div>
@@ -568,14 +575,20 @@
         setStatus('🧠','Đang tải AI nhận diện khuôn mặt...');
         document.getElementById('cnt-today').innerText = todayCount;
 
-        const W = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
-        try {
-            await Promise.all([
-                faceapi.nets.tinyFaceDetector.loadFromUri(W),
-                faceapi.nets.faceLandmark68Net.loadFromUri(W),
-                faceapi.nets.faceRecognitionNet.loadFromUri(W)
-            ]);
-        } catch(e) {
+        const W1 = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+        const W2 = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+        let loaded = false;
+        for (const W of [W1, W2]) {
+            try {
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(W),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(W),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(W)
+                ]);
+                loaded = true; break;
+            } catch(e) { /* thử nguồn tiếp theo */ }
+        }
+        if (!loaded) {
             setStatus('❌','Lỗi tải AI. Kiểm tra kết nối mạng.','err');
             return;
         }
@@ -607,7 +620,7 @@
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } }
+                video: { facingMode: facing, width: { ideal: 480 }, height: { ideal: 360 } }
             });
             currentStream = stream;
             video.srcObject = stream;
@@ -723,7 +736,7 @@
         btnSave.innerHTML = '<span>⏳</span> Đang phân tích...';
         setStatus('🔍',`Đang phân tích khuôn mặt của ${ten}...`,'save');
 
-        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
             .withFaceLandmarks().withFaceDescriptor();
 
         if (!det) {
@@ -761,9 +774,17 @@
                 todayCount++;
                 document.getElementById('cnt-today').innerText = todayCount;
                 await loadAllDescriptors();
-                setStatus('✅',`Đã lưu: ${ten} — ${lop}`,'ok');
-                alert(`✅ Thành công! Đã cập nhật vào cơ sở: ${coSo}`);
+
+                // Xoá tên + lớp, GIỮ cơ sở, focus vào ô tên để nhập học sinh tiếp
                 document.getElementById('tenHS').value = '';
+                document.getElementById('lopHS').value = '';
+                document.getElementById('tenHS').focus();
+
+                // Thông báo đẹp thay vì alert
+                setStatus('✅', `✅ Đã lưu: ${ten} — ${lop} | Sẵn sàng chụp tiếp!`, 'ok');
+                // Tự reset status sau 3 giây
+                setTimeout(() => setStatus('✅','Sẵn sàng — Nhập thông tin và nhấn Chụp.','ok'), 3000);
+
             } catch {
                 setStatus('❌','Lỗi Firebase! Kiểm tra quyền ghi.','err');
                 alert('❌ Lỗi Firebase!');
