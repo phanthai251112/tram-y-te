@@ -270,6 +270,24 @@
             box-shadow: 0 4px 16px rgba(99,102,241,.4);
         }
         .btn-start-cam.show { display: block; }
+        .cam-controls {
+            padding: 10px 14px 14px;
+            display: flex; gap: 8px; align-items: center;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .cam-controls.hidden { display: none; }
+        .btn-cam-toggle {
+            display: flex; align-items: center; gap: 6px;
+            padding: 8px 14px; border-radius: 9px;
+            border: 1.5px solid var(--border2);
+            background: rgba(255,255,255,.04); color: var(--text-2);
+            font-family: inherit; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all .2s; white-space: nowrap;
+        }
+        .btn-cam-toggle:hover { border-color: var(--indigo2); color: var(--indigo2); background: var(--indigo-bg); }
+        .btn-cam-toggle.active { background: var(--indigo); color: #fff; border-color: var(--indigo); }
+        .cam-mode-label { font-size: 12px; color: var(--text-3); margin-left: auto; }
 
         /* footer */
         footer {
@@ -373,8 +391,15 @@
                     <div class="cb-bl"></div><div class="cb-br"></div>
                 </div>
                 <div class="cam-foot">Đặt khuôn mặt học sinh chính giữa — nhìn thẳng — đủ sáng</div>
-                <div style="padding:0 14px 14px">
-                    <button class="btn-start-cam" id="btn-start-cam" onclick="startCamManual()">📷 Bật Camera</button>
+                <div id="cam-controls-wrap">
+                    <div style="padding:10px 14px 14px">
+                        <button class="btn-start-cam" id="btn-start-cam" onclick="startCamManual()">📷 Bật Camera</button>
+                    </div>
+                    <div class="cam-controls hidden" id="cam-controls">
+                        <button class="btn-cam-toggle active" id="btn-front" onclick="switchCamera('user')">🤳 Camera trước</button>
+                        <button class="btn-cam-toggle" id="btn-back" onclick="switchCamera('environment')">📷 Camera sau</button>
+                        <span class="cam-mode-label" id="cam-mode-label">Camera trước</span>
+                    </div>
                 </div>
             </div>
 
@@ -465,6 +490,9 @@
         if (confirm('Bạn muốn đăng xuất?')) signOut(auth).then(()=>location.reload());
     };
 
+    let currentFacing = 'user';
+    let currentStream = null;
+
     async function initAI() {
         setStatus('🧠','Đang tải AI nhận diện khuôn mặt...');
         try {
@@ -486,43 +514,62 @@
         }
         document.getElementById('ai-st').innerText = '✅';
 
-        // iOS Safari cần user gesture để bật camera
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile) {
-            setStatus('📷','Nhấn nút "Bật Camera" bên dưới để bắt đầu');
+            setStatus('📷','Nhấn "Bật Camera" bên dưới để bắt đầu');
             document.getElementById('btn-start-cam').classList.add('show');
         } else {
-            startCamera();
+            startCamera('user');
         }
     }
 
     window.startCamManual = () => {
-        document.getElementById('btn-start-cam').style.display = 'none';
-        startCamera();
+        document.getElementById('btn-start-cam').classList.remove('show');
+        startCamera('user');
     };
 
-    function startCamera() {
-        setStatus('📷','Đang xin quyền camera...');
-        navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
-        })
-        .then(s => {
-            video.srcObject = s;
+    async function startCamera(facing) {
+        currentFacing = facing;
+        setStatus('📷','Đang bật camera...');
+
+        if (currentStream) {
+            currentStream.getTracks().forEach(t => t.stop());
+            currentStream = null;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } }
+            });
+            currentStream = stream;
+            video.srcObject = stream;
             video.setAttribute('playsinline', true);
-            video.play();
+            await video.play();
+
             document.getElementById('live-pill').classList.add('on');
+            document.getElementById('cam-controls').classList.remove('hidden');
+            document.getElementById('btn-start-cam').classList.remove('show');
             btnSave.disabled = false;
+
+            document.getElementById('btn-front').classList.toggle('active', facing === 'user');
+            document.getElementById('btn-back').classList.toggle('active', facing === 'environment');
+            document.getElementById('cam-mode-label').innerText = facing === 'user' ? 'Camera trước' : 'Camera sau';
+
             setStatus('✅','Sẵn sàng — Nhập thông tin và nhấn Chụp.','ok');
-        })
-        .catch(err => {
+        } catch(err) {
             let msg = 'Không bật được Camera!';
             if (err.name === 'NotAllowedError')  msg = '🚫 Chưa cấp quyền camera. Vào Cài đặt trình duyệt để cho phép.';
             if (err.name === 'NotFoundError')     msg = '📵 Không tìm thấy camera trên thiết bị này.';
             if (err.name === 'NotReadableError')  msg = '⚠️ Camera đang được dùng bởi ứng dụng khác.';
             setStatus('❌', msg, 'err');
             alert(msg);
-        });
+        }
     }
+
+    window.switchCamera = (facing) => {
+        if (facing === currentFacing) return;
+        startCamera(facing);
+    };
 
     btnSave.addEventListener('click', async () => {
         const ten = document.getElementById('tenHS').value.trim();
