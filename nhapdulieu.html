@@ -289,6 +289,53 @@
         .btn-cam-toggle.active { background: var(--indigo); color: #fff; border-color: var(--indigo); }
         .cam-mode-label { font-size: 12px; color: var(--text-3); margin-left: auto; }
 
+        /* duplicate warning modal */
+        #dup-overlay {
+            display: none; position: fixed; inset: 0; z-index: 400;
+            background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+        }
+        #dup-modal {
+            display: none; position: fixed; z-index: 500;
+            top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: var(--card); border-radius: 18px;
+            border-top: 4px solid var(--amber);
+            padding: 28px 26px 22px;
+            width: calc(100% - 32px); max-width: 420px;
+            box-shadow: 0 24px 64px rgba(0,0,0,.5);
+            animation: popUp .3s cubic-bezier(.34,1.56,.64,1) both;
+        }
+        @keyframes popUp {
+            from { opacity:0; transform:translate(-50%,calc(-50% + 14px)) scale(.95); }
+            to   { opacity:1; transform:translate(-50%,-50%) scale(1); }
+        }
+        .dup-icon { font-size: 36px; text-align: center; margin-bottom: 12px; }
+        .dup-title { font-size: 18px; font-weight: 700; text-align: center; color: var(--amber); margin-bottom: 6px; }
+        .dup-desc  { font-size: 13px; color: var(--text-2); text-align: center; margin-bottom: 18px; line-height: 1.5; }
+        .dup-info  {
+            background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25);
+            border-radius: 10px; padding: 14px 16px; margin-bottom: 18px;
+        }
+        .dup-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; }
+        .dup-row:last-child { margin-bottom: 0; }
+        .dup-row .lbl { color: var(--text-3); }
+        .dup-row .val { font-weight: 600; color: var(--text); }
+        .dup-row .val.warn { color: var(--amber); }
+        .dup-btns { display: flex; gap: 10px; }
+        .btn-dup-cancel {
+            flex: 1; padding: 11px;
+            background: rgba(255,255,255,.06); border: 1.5px solid var(--border2); border-radius: 9px;
+            color: var(--text-2); font-family: inherit; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all .2s;
+        }
+        .btn-dup-cancel:hover { background: rgba(255,255,255,.1); }
+        .btn-dup-overwrite {
+            flex: 1; padding: 11px;
+            background: var(--amber); border: none; border-radius: 9px;
+            color: #1a1a00; font-family: inherit; font-size: 13px; font-weight: 700;
+            cursor: pointer; transition: opacity .2s;
+        }
+        .btn-dup-overwrite:hover { opacity: .85; }
+
         /* footer */
         footer {
             background: var(--card); border-top: 1px solid var(--border);
@@ -433,6 +480,19 @@
     <strong>Victoria Thăng Long 3</strong> · Cổng Quản Trị Nhập Liệu · VIC Group © 2025
 </footer>
 
+<!-- DUPLICATE WARNING MODAL -->
+<div id="dup-overlay"></div>
+<div id="dup-modal">
+    <div class="dup-icon" id="dup-icon">⚠️</div>
+    <div class="dup-title" id="dup-title">Phát hiện trùng lặp!</div>
+    <div class="dup-desc" id="dup-desc"></div>
+    <div class="dup-info" id="dup-info"></div>
+    <div class="dup-btns">
+        <button class="btn-dup-cancel" onclick="closeDupModal()">✕ Huỷ bỏ</button>
+        <button class="btn-dup-overwrite" id="btn-overwrite" onclick="doOverwrite()">🔄 Cập nhật đè</button>
+    </div>
+</div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, doc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -495,10 +555,6 @@
 
     async function initAI() {
         setStatus('🧠','Đang tải AI nhận diện khuôn mặt...');
-        try {
-            const snap = await getDocs(collection(db,'DuLieuKhuonMat'));
-            document.getElementById('cnt-total').innerText = snap.size;
-        } catch { document.getElementById('cnt-total').innerText = '?'; }
         document.getElementById('cnt-today').innerText = todayCount;
 
         const W = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
@@ -513,6 +569,7 @@
             return;
         }
         document.getElementById('ai-st').innerText = '✅';
+        await loadAllDescriptors(); // load cache để kiểm tra trùng
 
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile) {
@@ -571,6 +628,78 @@
         startCamera(facing);
     };
 
+    let allDescriptors = []; // cache toàn bộ dữ liệu để so sánh
+    let pendingSave = null;  // lưu tạm khi chờ user xác nhận ghi đè
+
+    // Load cache descriptors sau khi AI xong
+    async function loadAllDescriptors() {
+        const snap = await getDocs(collection(db,'DuLieuKhuonMat'));
+        allDescriptors = snap.docs.map(d => ({
+            id: d.id,
+            ten: d.data().ten,
+            lop: d.data().lop,
+            descriptor: new Float32Array(d.data().descriptor)
+        }));
+        document.getElementById('cnt-total').innerText = allDescriptors.length;
+    }
+
+    function euclidean(a, b) {
+        let s = 0;
+        for (let i = 0; i < a.length; i++) s += (a[i]-b[i])**2;
+        return Math.sqrt(s);
+    }
+
+    function showDupModal(type, existing, newTen, newLop, onConfirm) {
+        const overlay = document.getElementById('dup-overlay');
+        const modal   = document.getElementById('dup-modal');
+        const icon    = document.getElementById('dup-icon');
+        const title   = document.getElementById('dup-title');
+        const desc    = document.getElementById('dup-desc');
+        const info    = document.getElementById('dup-info');
+        const btnOvr  = document.getElementById('btn-overwrite');
+
+        if (type === 'face') {
+            icon.innerText  = '👤';
+            title.innerText = 'Khuôn mặt đã tồn tại!';
+            desc.innerText  = `Khuôn mặt này trùng với học sinh đã có trong hệ thống. Bạn có muốn cập nhật đè không?`;
+            info.innerHTML  = `
+                <div class="dup-row"><span class="lbl">Học sinh trùng mặt</span><span class="val warn">${existing.ten}</span></div>
+                <div class="dup-row"><span class="lbl">Lớp cũ</span><span class="val">${existing.lop}</span></div>
+                <div class="dup-row"><span class="lbl">Tên mới nhập</span><span class="val">${newTen}</span></div>
+                <div class="dup-row"><span class="lbl">Lớp mới</span><span class="val">${newLop}</span></div>`;
+            btnOvr.innerText = '🔄 Cập nhật đè';
+        } else if (type === 'name') {
+            icon.innerText  = '📋';
+            title.innerText = 'Tên học sinh đã tồn tại!';
+            desc.innerText  = `Đã có học sinh trùng tên trong hệ thống nhưng khuôn mặt khác. Ghi đè sẽ thay thế dữ liệu mặt cũ.`;
+            info.innerHTML  = `
+                <div class="dup-row"><span class="lbl">Tên trùng</span><span class="val warn">${existing.ten}</span></div>
+                <div class="dup-row"><span class="lbl">Lớp hiện tại</span><span class="val">${existing.lop}</span></div>
+                <div class="dup-row"><span class="lbl">Lớp mới nhập</span><span class="val">${newLop}</span></div>`;
+            btnOvr.innerText = '🔄 Ghi đè dữ liệu mặt';
+        }
+
+        pendingSave = onConfirm;
+        overlay.style.display = 'block';
+        modal.style.display   = 'block';
+    }
+
+    window.closeDupModal = () => {
+        document.getElementById('dup-overlay').style.display = 'none';
+        document.getElementById('dup-modal').style.display   = 'none';
+        pendingSave = null;
+        btnSave.disabled = false;
+        btnSave.innerHTML = '<span>📸</span> Chụp & Lưu Lên Hệ Thống';
+        setStatus('✅','Sẵn sàng — Nhập thông tin và nhấn Chụp.','ok');
+    };
+
+    window.doOverwrite = async () => {
+        document.getElementById('dup-overlay').style.display = 'none';
+        document.getElementById('dup-modal').style.display   = 'none';
+        if (pendingSave) await pendingSave();
+        pendingSave = null;
+    };
+
     btnSave.addEventListener('click', async () => {
         const ten = document.getElementById('tenHS').value.trim();
         const lop = document.getElementById('lopHS').value.trim();
@@ -583,28 +712,61 @@
         const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
             .withFaceLandmarks().withFaceDescriptor();
 
-        if (det) {
+        if (!det) {
+            setStatus('⚠️','Không thấy khuôn mặt — nhìn thẳng camera!','err');
+            alert('⚠️ Không nhận diện được mặt. Hãy nhìn thẳng và đủ sáng!');
+            btnSave.disabled = false;
+            btnSave.innerHTML = '<span>📸</span> Chụp & Lưu Lên Hệ Thống';
+            return;
+        }
+
+        const newDesc = det.descriptor;
+        const FACE_THRESHOLD = 0.5; // khoảng cách < 0.5 = trùng mặt
+
+        // 1. Kiểm tra trùng MẶT (khuôn mặt giống nhau, dù tên khác)
+        let faceDup = null;
+        for (const existing of allDescriptors) {
+            const dist = euclidean(newDesc, existing.descriptor);
+            if (dist < FACE_THRESHOLD) { faceDup = existing; break; }
+        }
+
+        // 2. Kiểm tra trùng TÊN + LỚP (cùng tên lớp, mặt khác)
+        const newId = `${lop} - ${ten}`;
+        const nameDup = allDescriptors.find(e => e.id === newId);
+
+        const doSave = async () => {
             setStatus('💾','Đang lưu lên Cloud...','save');
             try {
-                const id = `${lop} - ${ten}`;
-                await setDoc(doc(db,'DuLieuKhuonMat',id),{ten,lop,descriptor:Array.from(det.descriptor),ngayCapNhat:new Date()});
+                // Nếu ghi đè tên cũ khác ID → xoá record cũ trước (nếu là face dup khác tên)
+                await setDoc(doc(db,'DuLieuKhuonMat', newId), {
+                    ten, lop,
+                    descriptor: Array.from(newDesc),
+                    ngayCapNhat: new Date()
+                });
                 todayCount++;
                 document.getElementById('cnt-today').innerText = todayCount;
-                const snap = await getDocs(collection(db,'DuLieuKhuonMat'));
-                document.getElementById('cnt-total').innerText = snap.size;
+                await loadAllDescriptors();
                 setStatus('✅',`Đã lưu: ${ten} — ${lop}`,'ok');
-                alert(`✅ Thành công! Cập nhật: ${id}`);
+                alert(`✅ Thành công! Đã cập nhật: ${newId}`);
                 document.getElementById('tenHS').value = '';
             } catch {
                 setStatus('❌','Lỗi Firebase! Kiểm tra quyền ghi.','err');
                 alert('❌ Lỗi Firebase!');
             }
+            btnSave.disabled = false;
+            btnSave.innerHTML = '<span>📸</span> Chụp & Lưu Lên Hệ Thống';
+        };
+
+        if (faceDup && faceDup.id !== newId) {
+            // Trùng MẶT với người khác tên → cảnh báo mạnh nhất
+            showDupModal('face', faceDup, ten, lop, doSave);
+        } else if (nameDup) {
+            // Trùng TÊN+LỚP, mặt khác (cập nhật lại ảnh) → hỏi xác nhận
+            showDupModal('name', nameDup, ten, lop, doSave);
         } else {
-            setStatus('⚠️','Không thấy khuôn mặt — nhìn thẳng camera!','err');
-            alert('⚠️ Không nhận diện được mặt. Hãy nhìn thẳng và đủ sáng!');
+            // Không trùng gì → lưu thẳng
+            await doSave();
         }
-        btnSave.disabled = false;
-        btnSave.innerHTML = '<span>📸</span> Chụp & Lưu Lên Hệ Thống';
     });
 </script>
 </body>
