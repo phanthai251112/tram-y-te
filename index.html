@@ -675,18 +675,20 @@
 
     async function scan() {
         const matcher = new faceapi.FaceMatcher(descriptors, 0.45);
-        // Dùng options nhỏ hơn để nhanh hơn trên máy yếu
-        const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const opts = new faceapi.TinyFaceDetectorOptions({
+            inputSize: isMobileDevice ? 224 : 320,
+            scoreThreshold: 0.5
+        });
         let running = false;
 
         async function loop() {
-            if (!isScanning || running) {
+            if (!isScanning || running || video.readyState < 2) {
                 setTimeout(loop, 300);
                 return;
             }
             running = true;
             try {
-                // detectSingleFace nhanh hơn detectAllFaces vì chỉ tìm 1 mặt
                 const det = await faceapi.detectSingleFace(video, opts)
                     .withFaceLandmarks().withFaceDescriptor();
                 if (det && isScanning) {
@@ -698,8 +700,7 @@
                 }
             } catch(e) { /* bỏ qua frame lỗi */ }
             running = false;
-            // Chờ 800ms trước vòng tiếp theo — đủ nhanh, không lag
-            setTimeout(loop, 800);
+            setTimeout(loop, isMobileDevice ? 1000 : 700);
         }
         loop();
     }
