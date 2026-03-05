@@ -118,7 +118,7 @@
             width: 100%; padding: 12px 14px 12px 42px;
             border: 1.5px solid var(--border); border-radius: var(--radius);
             background: var(--bg); color: var(--text);
-            font-family: inherit; font-size: 14px; outline: none;
+            font-family: inherit; font-size: 16px; /* 16px prevents iOS auto-zoom */ outline: none;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
         .inp::placeholder { color: var(--text-3); }
@@ -296,7 +296,7 @@
             width: 100%; padding: 11px 13px;
             border: 1.5px solid var(--border); border-radius: 9px;
             background: var(--bg); color: var(--text);
-            font-family: inherit; font-size: 14px; outline: none;
+            font-family: inherit; font-size: 16px; /* 16px prevents iOS zoom */ outline: none;
             transition: border-color .2s, box-shadow .2s; margin-bottom: 12px;
         }
         .finp::placeholder { color: var(--text-3); }
@@ -318,8 +318,17 @@
         }
         .btn-skip:hover { background: var(--bg); color: var(--text-2); border-color: #b0ccd9; }
 
-        /* ═══ FOOTER ═══ */
-        footer {
+        /* ── start camera button (shown on mobile before camera starts) ── */
+        .btn-start-cam {
+            display: none;
+            width: 100%; padding: 14px;
+            background: var(--teal); color: #fff;
+            border: none; border-radius: 10px;
+            font-family: inherit; font-size: 15px; font-weight: 600;
+            cursor: pointer; margin-top: 10px;
+            box-shadow: 0 4px 14px rgba(11,158,138,.35);
+        }
+        .btn-start-cam.show { display: block; }
             background: var(--white); border-top: 1px solid var(--border);
             text-align: center; padding: 18px 24px;
             font-size: 12px; color: var(--text-3);
@@ -415,6 +424,9 @@
                     <div class="cam-scan-label" id="cam-lbl">📷 Đang chờ...</div>
                 </div>
                 <div class="cam-foot">Đứng thẳng trước camera — hệ thống tự nhận diện</div>
+                <div style="padding:0 14px 14px">
+                    <button class="btn-start-cam" id="btn-start-cam" onclick="startCamManual()">📷 Bật Camera</button>
+                </div>
             </div>
 
             <!-- Side -->
@@ -543,9 +555,14 @@
         aiLoaded = true;
         setStatus('🧠','Đang tải AI & dữ liệu học sinh...');
         const W = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
-        await faceapi.nets.tinyFaceDetector.loadFromUri(W);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(W);
-        await faceapi.nets.faceRecognitionNet.loadFromUri(W);
+        try {
+            await faceapi.nets.tinyFaceDetector.loadFromUri(W);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(W);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(W);
+        } catch(e) {
+            setStatus('❌','Lỗi tải AI. Kiểm tra kết nối mạng và thử lại.');
+            return;
+        }
         document.getElementById('ai-lbl').innerText = 'AI đã sẵn sàng';
 
         const snap = await getDocs(collection(db,'DuLieuKhuonMat'));
@@ -555,15 +572,49 @@
         });
         if (!descriptors.length) { setStatus('⚠️','Chưa có dữ liệu học sinh. Sang Cổng Nhập Liệu!'); return; }
 
-        navigator.mediaDevices.getUserMedia({video:{}})
+        // iOS Safari requires user gesture to start camera — show button
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+            setStatus('📷','Nhấn nút "Bật Camera" bên dưới để bắt đầu quét');
+            document.getElementById('btn-start-cam').classList.add('show');
+        } else {
+            startCamera();
+        }
+    }
+
+    window.startCamManual = () => {
+        document.getElementById('btn-start-cam').style.display = 'none';
+        startCamera();
+    };
+
+    function startCamera() {
+        setStatus('📷','Đang xin quyền camera...');
+        // facingMode: user = camera trước (selfie) — đúng cho nhận diện mặt
+        const constraints = {
+            video: {
+                facingMode: 'user',
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            }
+        };
+        navigator.mediaDevices.getUserMedia(constraints)
             .then(s => {
                 video.srcObject = s;
+                video.setAttribute('playsinline', true); // iOS fix
+                video.play();
                 document.getElementById('cam-rec').classList.add('on');
                 document.getElementById('cam-lbl').innerText = '🔴 Đang quét mặt';
                 setStatus('👁️','Hệ thống đang quét — Đứng trước camera',true);
                 scan();
             })
-            .catch(() => alert('Không bật được Camera!'));
+            .catch(err => {
+                let msg = 'Không bật được Camera!';
+                if (err.name === 'NotAllowedError')  msg = '🚫 Bạn chưa cấp quyền camera. Vào Cài đặt trình duyệt để cho phép.';
+                if (err.name === 'NotFoundError')     msg = '📵 Không tìm thấy camera trên thiết bị này.';
+                if (err.name === 'NotReadableError')  msg = '⚠️ Camera đang được dùng bởi ứng dụng khác.';
+                setStatus('❌', msg);
+                alert(msg);
+            });
     }
 
     async function scan() {
