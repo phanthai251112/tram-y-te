@@ -674,7 +674,7 @@
     };
 
     async function scan() {
-        const matcher = new faceapi.FaceMatcher(descriptors, 0.6);
+        const matcher = new faceapi.FaceMatcher(descriptors, 0.45);
         setInterval(async () => {
             if (!isScanning) return;
             const dets = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
