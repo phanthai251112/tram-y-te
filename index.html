@@ -588,31 +588,15 @@
     let currentFacing = 'user';
     let currentStream = null;
 
-    async function loadWeights() {
-        // Thử nguồn 1: jsDelivr (có CDN cache)
-        const W1 = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
-        // Fallback nguồn 2: raw GitHub
-        const W2 = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
-        try {
-            await faceapi.nets.tinyFaceDetector.loadFromUri(W1);
-            await faceapi.nets.faceLandmark68Net.loadFromUri(W1);
-            await faceapi.nets.faceRecognitionNet.loadFromUri(W1);
-            return true;
-        } catch(e) {
-            try {
-                await faceapi.nets.tinyFaceDetector.loadFromUri(W2);
-                await faceapi.nets.faceLandmark68Net.loadFromUri(W2);
-                await faceapi.nets.faceRecognitionNet.loadFromUri(W2);
-                return true;
-            } catch(e2) { return false; }
-        }
-    }
-
     async function initAI() {
         aiLoaded = true;
         setStatus('🧠','Đang tải AI & dữ liệu học sinh...');
-        const ok = await loadWeights();
-        if (!ok) {
+        const W = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
+        try {
+            await faceapi.nets.tinyFaceDetector.loadFromUri(W);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(W);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(W);
+        } catch(e) {
             setStatus('❌','Lỗi tải AI. Kiểm tra kết nối mạng và thử lại.');
             return;
         }
@@ -691,20 +675,18 @@
 
     async function scan() {
         const matcher = new faceapi.FaceMatcher(descriptors, 0.45);
-        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const opts = new faceapi.TinyFaceDetectorOptions({
-            inputSize: isMobileDevice ? 224 : 320,
-            scoreThreshold: 0.5
-        });
+        // Dùng options nhỏ hơn để nhanh hơn trên máy yếu
+        const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
         let running = false;
 
         async function loop() {
-            if (!isScanning || running || video.readyState < 2) {
+            if (!isScanning || running) {
                 setTimeout(loop, 300);
                 return;
             }
             running = true;
             try {
+                // detectSingleFace nhanh hơn detectAllFaces vì chỉ tìm 1 mặt
                 const det = await faceapi.detectSingleFace(video, opts)
                     .withFaceLandmarks().withFaceDescriptor();
                 if (det && isScanning) {
@@ -716,7 +698,8 @@
                 }
             } catch(e) { /* bỏ qua frame lỗi */ }
             running = false;
-            setTimeout(loop, isMobileDevice ? 1000 : 700);
+            // Chờ 800ms trước vòng tiếp theo — đủ nhanh, không lag
+            setTimeout(loop, 800);
         }
         loop();
     }
