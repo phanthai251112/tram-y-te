@@ -427,6 +427,7 @@
             </div>
             <div class="btn-row">
                 <a href="nhapdulieu.html" class="btn-outline" target="_blank">⚙️ Cổng Nhập Liệu</a>
+                <a href="https://docs.google.com/spreadsheets/d/1ffppAcdhjrrCX7U7DEGVkijaxu7wWNJ5_3Mg2bY9ZPQ/edit?hl=vi&gid=925481215#gid=925481215" target="_blank" class="btn-outline" style="border-color:#34D399;color:#059669;background:#F0FDF9;">📊 Xem Kết Quả</a>
                 <button class="btn-outline red" onclick="logout()">🚪 Đăng xuất</button>
             </div>
         </div>
@@ -591,7 +592,7 @@
     async function initAI() {
         aiLoaded = true;
         setStatus('🧠','Đang tải AI & dữ liệu học sinh...');
-        const W = './weights';
+        const W = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
         try {
             await faceapi.nets.tinyFaceDetector.loadFromUri(W);
             await faceapi.nets.faceLandmark68Net.loadFromUri(W);
@@ -675,19 +676,33 @@
 
     async function scan() {
         const matcher = new faceapi.FaceMatcher(descriptors, 0.45);
-        setInterval(async () => {
-            if (!isScanning) return;
-            const dets = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-                .withFaceLandmarks().withFaceDescriptors();
-            dets.forEach(fd => {
-                const r = matcher.findBestMatch(fd.descriptor);
-                if (r.label !== 'unknown') {
-                    // CẬP NHẬT: Tách dữ liệu thành 3 phần bao gồm cả Cơ sở
-                    const [ten, lop, coSo] = r.label.split('|');
-                    showPopup(ten, lop, coSo);
+        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const opts = new faceapi.TinyFaceDetectorOptions({
+            inputSize: isMobileDevice ? 224 : 320,
+            scoreThreshold: 0.5
+        });
+        let running = false;
+
+        async function loop() {
+            if (!isScanning || running || video.readyState < 2) {
+                setTimeout(loop, 300); return;
+            }
+            running = true;
+            try {
+                const det = await faceapi.detectSingleFace(video, opts)
+                    .withFaceLandmarks().withFaceDescriptor();
+                if (det && isScanning) {
+                    const r = matcher.findBestMatch(det.descriptor);
+                    if (r.label !== 'unknown') {
+                        const [ten, lop, coSo] = r.label.split('|');
+                        showPopup(ten, lop, coSo);
+                    }
                 }
-            });
-        }, 1000);
+            } catch(e) {}
+            running = false;
+            setTimeout(loop, isMobileDevice ? 1000 : 700);
+        }
+        loop();
     }
 
     // CẬP NHẬT: Nhận thêm biến coSo
