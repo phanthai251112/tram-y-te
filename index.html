@@ -318,17 +318,38 @@
         }
         .btn-skip:hover { background: var(--bg); color: var(--text-2); border-color: #b0ccd9; }
 
-        /* ── start camera button (shown on mobile before camera starts) ── */
+        /* ── camera controls ── */
         .btn-start-cam {
             display: none;
-            width: 100%; padding: 14px;
+            width: 100%; padding: 13px;
             background: var(--teal); color: #fff;
             border: none; border-radius: 10px;
             font-family: inherit; font-size: 15px; font-weight: 600;
-            cursor: pointer; margin-top: 10px;
+            cursor: pointer;
             box-shadow: 0 4px 14px rgba(11,158,138,.35);
         }
         .btn-start-cam.show { display: block; }
+        .cam-controls {
+            padding: 10px 14px 14px;
+            display: flex; gap: 8px; align-items: center;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .cam-controls.hidden { display: none; }
+        .btn-cam-toggle {
+            display: flex; align-items: center; gap: 6px;
+            padding: 8px 14px; border-radius: 9px;
+            border: 1.5px solid var(--border);
+            background: var(--white); color: var(--text-2);
+            font-family: inherit; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all .2s; white-space: nowrap;
+        }
+        .btn-cam-toggle:hover { border-color: var(--teal); color: var(--teal); background: var(--teal-bg); }
+        .btn-cam-toggle.active { background: var(--teal); color: #fff; border-color: var(--teal); }
+        .cam-mode-label { font-size: 12px; color: var(--text-3); margin-left: auto; }
+
+        /* ═══ FOOTER ═══ */
+        footer {
             background: var(--white); border-top: 1px solid var(--border);
             text-align: center; padding: 18px 24px;
             font-size: 12px; color: var(--text-3);
@@ -424,8 +445,15 @@
                     <div class="cam-scan-label" id="cam-lbl">📷 Đang chờ...</div>
                 </div>
                 <div class="cam-foot">Đứng thẳng trước camera — hệ thống tự nhận diện</div>
-                <div style="padding:0 14px 14px">
-                    <button class="btn-start-cam" id="btn-start-cam" onclick="startCamManual()">📷 Bật Camera</button>
+                <div id="cam-controls-wrap">
+                    <div style="padding:10px 14px 14px">
+                        <button class="btn-start-cam" id="btn-start-cam" onclick="startCamManual()">📷 Bật Camera</button>
+                    </div>
+                    <div class="cam-controls hidden" id="cam-controls">
+                        <button class="btn-cam-toggle active" id="btn-front" onclick="switchCamera('user')">🤳 Camera trước</button>
+                        <button class="btn-cam-toggle" id="btn-back" onclick="switchCamera('environment')">📷 Camera sau</button>
+                        <span class="cam-mode-label" id="cam-mode-label">Camera trước</span>
+                    </div>
                 </div>
             </div>
 
@@ -551,6 +579,9 @@
             signOut(auth).then(() => location.reload());
     };
 
+    let currentFacing = 'user';
+    let currentStream = null;
+
     async function initAI() {
         aiLoaded = true;
         setStatus('🧠','Đang tải AI & dữ liệu học sinh...');
@@ -572,50 +603,66 @@
         });
         if (!descriptors.length) { setStatus('⚠️','Chưa có dữ liệu học sinh. Sang Cổng Nhập Liệu!'); return; }
 
-        // iOS Safari requires user gesture to start camera — show button
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile) {
-            setStatus('📷','Nhấn nút "Bật Camera" bên dưới để bắt đầu quét');
+            setStatus('📷','Nhấn "Bật Camera" bên dưới để bắt đầu quét');
             document.getElementById('btn-start-cam').classList.add('show');
         } else {
-            startCamera();
+            startCamera('user');
         }
     }
 
     window.startCamManual = () => {
-        document.getElementById('btn-start-cam').style.display = 'none';
-        startCamera();
+        document.getElementById('btn-start-cam').classList.remove('show');
+        startCamera('user');
     };
 
-    function startCamera() {
-        setStatus('📷','Đang xin quyền camera...');
-        // facingMode: user = camera trước (selfie) — đúng cho nhận diện mặt
-        const constraints = {
-            video: {
-                facingMode: 'user',
-                width: { ideal: 640 },
-                height: { ideal: 480 }
-            }
-        };
-        navigator.mediaDevices.getUserMedia(constraints)
-            .then(s => {
-                video.srcObject = s;
-                video.setAttribute('playsinline', true); // iOS fix
-                video.play();
-                document.getElementById('cam-rec').classList.add('on');
-                document.getElementById('cam-lbl').innerText = '🔴 Đang quét mặt';
-                setStatus('👁️','Hệ thống đang quét — Đứng trước camera',true);
-                scan();
-            })
-            .catch(err => {
-                let msg = 'Không bật được Camera!';
-                if (err.name === 'NotAllowedError')  msg = '🚫 Bạn chưa cấp quyền camera. Vào Cài đặt trình duyệt để cho phép.';
-                if (err.name === 'NotFoundError')     msg = '📵 Không tìm thấy camera trên thiết bị này.';
-                if (err.name === 'NotReadableError')  msg = '⚠️ Camera đang được dùng bởi ứng dụng khác.';
-                setStatus('❌', msg);
-                alert(msg);
+    async function startCamera(facing) {
+        currentFacing = facing;
+        setStatus('📷','Đang bật camera...');
+
+        // Tắt stream cũ nếu có
+        if (currentStream) {
+            currentStream.getTracks().forEach(t => t.stop());
+            currentStream = null;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } }
             });
+            currentStream = stream;
+            video.srcObject = stream;
+            video.setAttribute('playsinline', true);
+            await video.play();
+
+            document.getElementById('cam-rec').classList.add('on');
+            document.getElementById('cam-lbl').innerText = '🔴 Đang quét mặt';
+            document.getElementById('cam-controls').classList.remove('hidden');
+            document.getElementById('btn-start-cam').classList.remove('show');
+
+            // Cập nhật nút active
+            document.getElementById('btn-front').classList.toggle('active', facing === 'user');
+            document.getElementById('btn-back').classList.toggle('active', facing === 'environment');
+            document.getElementById('cam-mode-label').innerText = facing === 'user' ? 'Camera trước' : 'Camera sau';
+
+            setStatus('👁️','Hệ thống đang quét — Đứng trước camera', true);
+            scan();
+        } catch(err) {
+            let msg = 'Không bật được Camera!';
+            if (err.name === 'NotAllowedError')  msg = '🚫 Chưa cấp quyền camera. Vào Cài đặt trình duyệt để cho phép.';
+            if (err.name === 'NotFoundError')     msg = '📵 Không tìm thấy camera trên thiết bị này.';
+            if (err.name === 'NotReadableError')  msg = '⚠️ Camera đang được dùng bởi ứng dụng khác.';
+            setStatus('❌', msg);
+            alert(msg);
+        }
     }
+
+    window.switchCamera = (facing) => {
+        if (facing === currentFacing) return;
+        isScanning = false;
+        startCamera(facing).then(() => { isScanning = true; });
+    };
 
     async function scan() {
         const matcher = new faceapi.FaceMatcher(descriptors, 0.6);
