@@ -568,7 +568,7 @@
         setStatus('🧠','Đang tải AI nhận diện khuôn mặt...');
         document.getElementById('cnt-today').innerText = todayCount;
 
-        const W = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+        const W = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
         try {
             await Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri(W),
@@ -607,7 +607,7 @@
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } }
+                video: { facingMode: facing, width: { ideal: 480 }, height: { ideal: 360 } }
             });
             currentStream = stream;
             video.srcObject = stream;
@@ -723,7 +723,7 @@
         btnSave.innerHTML = '<span>⏳</span> Đang phân tích...';
         setStatus('🔍',`Đang phân tích khuôn mặt của ${ten}...`,'save');
 
-        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
             .withFaceLandmarks().withFaceDescriptor();
 
         if (!det) {
