@@ -588,15 +588,31 @@
     let currentFacing = 'user';
     let currentStream = null;
 
+    async function loadWeights() {
+        // Thử nguồn 1: jsDelivr (có CDN cache)
+        const W1 = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+        // Fallback nguồn 2: raw GitHub
+        const W2 = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+        try {
+            await faceapi.nets.tinyFaceDetector.loadFromUri(W1);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(W1);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(W1);
+            return true;
+        } catch(e) {
+            try {
+                await faceapi.nets.tinyFaceDetector.loadFromUri(W2);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(W2);
+                await faceapi.nets.faceRecognitionNet.loadFromUri(W2);
+                return true;
+            } catch(e2) { return false; }
+        }
+    }
+
     async function initAI() {
         aiLoaded = true;
         setStatus('🧠','Đang tải AI & dữ liệu học sinh...');
-        const W = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
-        try {
-            await faceapi.nets.tinyFaceDetector.loadFromUri(W);
-            await faceapi.nets.faceLandmark68Net.loadFromUri(W);
-            await faceapi.nets.faceRecognitionNet.loadFromUri(W);
-        } catch(e) {
+        const ok = await loadWeights();
+        if (!ok) {
             setStatus('❌','Lỗi tải AI. Kiểm tra kết nối mạng và thử lại.');
             return;
         }
