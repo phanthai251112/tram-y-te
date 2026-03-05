@@ -204,7 +204,31 @@
         .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); animation: blink 1.2s infinite; }
         @keyframes blink { 0%,100%{opacity:1}50%{opacity:.2} }
         .cam-body { position: relative; background: #080F18; }
-        .cam-body video { display: block; width: 100%; aspect-ratio: 4/3; object-fit: cover; }
+        .cam-body video { display: block; width: 100%; aspect-ratio: 4/3; object-fit: cover; transition: filter .3s; }
+        .cam-body.capture-mode video { filter: brightness(0.4); }
+
+        /* khung tròn khi chụp */
+        .circle-overlay {
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%,-50%);
+            width: min(62%, 200px); aspect-ratio: 1/1;
+            border-radius: 50%;
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+            border: 3px solid var(--indigo2);
+            z-index: 4;
+            animation: circleIn .3s cubic-bezier(.34,1.56,.64,1) both;
+        }
+        @keyframes circleIn { from{transform:translate(-50%,-50%) scale(.7);opacity:0} to{transform:translate(-50%,-50%) scale(1);opacity:1} }
+        .circle-overlay.show { display: block; }
+        .circle-hint {
+            display: none; position: absolute;
+            top: calc(50% + min(33%, 108px) + 12px);
+            left: 50%; transform: translateX(-50%);
+            color: #fff; font-size: 12px; font-weight: 600;
+            white-space: nowrap; z-index: 5;
+            text-shadow: 0 1px 4px rgba(0,0,0,.7);
+        }
+        .circle-hint.show { display: block; }
         .cam-body::before,.cam-body::after,.cb-bl,.cb-br {
             content:''; position:absolute; width:20px; height:20px;
             border-color:var(--indigo2); border-style:solid; z-index:2;
@@ -340,12 +364,6 @@
         }
         .btn-dup-overwrite:hover { opacity: .85; }
 
-        .btn-ghost.green {
-            border-color: rgba(52,211,153,.4); color: #059669;
-            background: rgba(52,211,153,.08);
-        }
-        .btn-ghost.green:hover { background: rgba(52,211,153,.15); border-color: #10b981; color: #047857; }
-
         /* footer */
         footer {
             background: var(--card); border-top: 1px solid var(--border);
@@ -418,7 +436,6 @@
             </div>
             <div class="btn-row">
                 <a href="index.html" class="btn-ghost">← Trạm Quét</a>
-                <a href="https://docs.google.com/spreadsheets/d/1ffppAcdhjrrCX7U7DEGVkijaxu7wWNJ5_3Mg2bY9ZPQ/edit?hl=vi&gid=925481215#gid=925481215" target="_blank" class="btn-ghost green">📊 Kết quả học sinh</a>
                 <button class="btn-ghost red" onclick="logout()">🚪 Đăng xuất</button>
             </div>
         </div>
@@ -441,9 +458,11 @@
                     <span class="cam-lbl-wrap">Camera Nhập Liệu</span>
                     <div class="live-pill" id="live-pill"><div class="live-dot"></div>LIVE</div>
                 </div>
-                <div class="cam-body">
+                <div class="cam-body" id="cam-body">
                     <video id="video" autoplay muted playsinline></video>
                     <div class="cb-bl"></div><div class="cb-br"></div>
+                    <div class="circle-overlay" id="circle-overlay"></div>
+                    <div class="circle-hint" id="circle-hint">👤 Đặt mặt vào khung — đang chụp...</div>
                 </div>
                 <div class="cam-foot">Đặt khuôn mặt học sinh chính giữa — nhìn thẳng — đủ sáng</div>
                 <div id="cam-controls-wrap">
@@ -575,20 +594,14 @@
         setStatus('🧠','Đang tải AI nhận diện khuôn mặt...');
         document.getElementById('cnt-today').innerText = todayCount;
 
-        const W1 = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
-        const W2 = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
-        let loaded = false;
-        for (const W of [W1, W2]) {
-            try {
-                await Promise.all([
-                    faceapi.nets.tinyFaceDetector.loadFromUri(W),
-                    faceapi.nets.faceLandmark68Net.loadFromUri(W),
-                    faceapi.nets.faceRecognitionNet.loadFromUri(W)
-                ]);
-                loaded = true; break;
-            } catch(e) { /* thử nguồn tiếp theo */ }
-        }
-        if (!loaded) {
+        const W = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+        try {
+            await Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri(W),
+                faceapi.nets.faceLandmark68Net.loadFromUri(W),
+                faceapi.nets.faceRecognitionNet.loadFromUri(W)
+            ]);
+        } catch(e) {
             setStatus('❌','Lỗi tải AI. Kiểm tra kết nối mạng.','err');
             return;
         }
@@ -620,7 +633,7 @@
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: facing, width: { ideal: 480 }, height: { ideal: 360 } }
+                video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } }
             });
             currentStream = stream;
             video.srcObject = stream;
@@ -726,38 +739,55 @@
     };
 
     btnSave.addEventListener('click', async () => {
-        const ten = document.getElementById('tenHS').value.trim();
-        const lop = document.getElementById('lopHS').value.trim();
+        const ten  = document.getElementById('tenHS').value.trim();
+        const lop  = document.getElementById('lopHS').value.trim();
         const coSo = document.getElementById('coSoHS').value;
 
         if (!ten||!lop) { alert('Vui lòng nhập đầy đủ Tên và Lớp!'); return; }
 
+        const circle  = document.getElementById('circle-overlay');
+        const hint    = document.getElementById('circle-hint');
+        const camBody = document.getElementById('cam-body');
+
+        // Hiện khung tròn, làm tối nền
+        circle.classList.add('show');
+        hint.classList.add('show');
+        camBody.classList.add('capture-mode');
+
         btnSave.disabled = true;
-        btnSave.innerHTML = '<span>⏳</span> Đang phân tích...';
-        setStatus('🔍',`Đang phân tích khuôn mặt của ${ten}...`,'save');
+        btnSave.innerHTML = '<span>⏳</span> Đang chụp...';
+        setStatus('🔍',`Đang chụp khuôn mặt ${ten}...`,'save');
+
+        // Chờ 600ms để đặt mặt vào khung
+        await new Promise(r => setTimeout(r, 600));
 
         const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
             .withFaceLandmarks().withFaceDescriptor();
 
+        // Ẩn khung tròn
+        circle.classList.remove('show');
+        hint.classList.remove('show');
+        camBody.classList.remove('capture-mode');
+
         if (!det) {
-            setStatus('⚠️','Không thấy khuôn mặt — nhìn thẳng camera!','err');
-            alert('⚠️ Không nhận diện được mặt. Hãy nhìn thẳng và đủ sáng!');
+            setStatus('⚠️','Không thấy mặt — đặt mặt vào giữa khung và thử lại!','err');
             btnSave.disabled = false;
             btnSave.innerHTML = '<span>📸</span> Chụp & Lưu Lên Hệ Thống';
             return;
         }
 
         const newDesc = det.descriptor;
-        const FACE_THRESHOLD = 0.38; 
+        // 0.5 = ngưỡng chuẩn, tránh báo nhầm trùng
+        const FACE_THRESHOLD = 0.5;
 
-        // 1. Kiểm tra trùng MẶT 
+        // 1. Kiểm tra trùng MẶT
         let faceDup = null;
         for (const existing of allDescriptors) {
             const dist = euclidean(newDesc, existing.descriptor);
             if (dist < FACE_THRESHOLD) { faceDup = existing; break; }
         }
 
-        // 2. Kiểm tra trùng CƠ SỞ + TÊN + LỚP 
+        // 2. Kiểm tra trùng CƠ SỞ + TÊN + LỚP
         const newId = `${coSo} - ${lop} - ${ten}`;
         const nameDup = allDescriptors.find(e => e.id === newId);
 
@@ -765,9 +795,7 @@
             setStatus('💾','Đang lưu lên Cloud...','save');
             try {
                 await setDoc(doc(db,'DuLieuKhuonMat', newId), {
-                    ten: ten, 
-                    lop: lop,
-                    coSo: coSo,
+                    ten, lop, coSo,
                     descriptor: Array.from(newDesc),
                     ngayCapNhat: new Date()
                 });
@@ -775,16 +803,13 @@
                 document.getElementById('cnt-today').innerText = todayCount;
                 await loadAllDescriptors();
 
-                // Xoá tên + lớp, GIỮ cơ sở, focus vào ô tên để nhập học sinh tiếp
+                // Xoá tên + lớp, GIỮ cơ sở, focus tên để nhập tiếp
                 document.getElementById('tenHS').value = '';
                 document.getElementById('lopHS').value = '';
                 document.getElementById('tenHS').focus();
 
-                // Thông báo đẹp thay vì alert
                 setStatus('✅', `✅ Đã lưu: ${ten} — ${lop} | Sẵn sàng chụp tiếp!`, 'ok');
-                // Tự reset status sau 3 giây
                 setTimeout(() => setStatus('✅','Sẵn sàng — Nhập thông tin và nhấn Chụp.','ok'), 3000);
-
             } catch {
                 setStatus('❌','Lỗi Firebase! Kiểm tra quyền ghi.','err');
                 alert('❌ Lỗi Firebase!');
@@ -794,13 +819,10 @@
         };
 
         if (faceDup && faceDup.id !== newId) {
-            // Trùng MẶT với người khác hoặc cơ sở khác
             showDupModal('face', faceDup, ten, lop, coSo, doSave);
         } else if (nameDup) {
-            // Trùng toàn bộ ID (Cơ sở + Tên + Lớp) nhưng thay đổi mặt
             showDupModal('name', nameDup, ten, lop, coSo, doSave);
         } else {
-            // Lưu mới hoàn toàn
             await doSave();
         }
     });
