@@ -217,8 +217,50 @@
         .cam-rec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); animation: blink 1.2s infinite; }
         @keyframes blink { 0%,100%{opacity:1}50%{opacity:.2} }
         .cam-wrap { position: relative; background: #0C1820; }
-        .cam-wrap video { display: block; width: 100%; aspect-ratio: 4/3; object-fit: cover; }
-        /* corner brackets */
+        .cam-wrap video { display: block; width: 100%; aspect-ratio: 4/3; object-fit: cover; transition: filter .3s; }
+
+        /* vùng tối xung quanh khung tròn khi ở chế độ chụp */
+        .cam-wrap.capture-mode video { filter: brightness(0.4); }
+        .circle-overlay {
+            display: none;
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(62%, 220px); aspect-ratio: 1;
+            border-radius: 50%;
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+            border: 3px solid var(--teal-lt);
+            z-index: 4;
+            animation: circleIn .35s cubic-bezier(.34,1.56,.64,1) both;
+        }
+        @keyframes circleIn { from{transform:translate(-50%,-50%) scale(.7);opacity:0} to{transform:translate(-50%,-50%) scale(1);opacity:1} }
+        .circle-overlay.show { display: block; }
+        /* nhãn bên trong vòng tròn */
+        .circle-hint {
+            display: none; position: absolute;
+            top: calc(50% + min(33%, 118px) + 12px);
+            left: 50%; transform: translateX(-50%);
+            color: #fff; font-size: 12px; font-weight: 600;
+            white-space: nowrap; z-index: 5;
+            text-shadow: 0 1px 4px rgba(0,0,0,.6);
+            letter-spacing: .5px;
+        }
+        .circle-hint.show { display: block; }
+
+        /* nút Quét */
+        .btn-scan-trigger {
+            width: 100%; padding: 14px;
+            background: var(--teal); color: #fff;
+            border: none; border-radius: 10px;
+            font-family: inherit; font-size: 15px; font-weight: 700;
+            cursor: pointer; letter-spacing: .3px;
+            box-shadow: 0 4px 14px rgba(11,158,138,.4);
+            transition: background .2s, transform .15s, box-shadow .2s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-scan-trigger:hover { background: var(--teal-dk); transform: translateY(-1px); }
+        .btn-scan-trigger:active { transform: scale(.97); }
+        .btn-scan-trigger:disabled { background: #a0c4be; cursor: not-allowed; box-shadow: none; transform: none; }
+        .btn-scan-wrap { padding: 12px 14px 14px; border-top: 1px solid var(--border); }
         .cam-wrap::before,.cam-wrap::after,.cb-bl,.cb-br {
             content: ''; position: absolute;
             width: 22px; height: 22px; border-color: var(--teal-lt); border-style: solid; z-index: 2;
@@ -427,7 +469,6 @@
             </div>
             <div class="btn-row">
                 <a href="nhapdulieu.html" class="btn-outline" target="_blank">⚙️ Cổng Nhập Liệu</a>
-                <a href="https://docs.google.com/spreadsheets/d/1ffppAcdhjrrCX7U7DEGVkijaxu7wWNJ5_3Mg2bY9ZPQ/edit?hl=vi&gid=925481215#gid=925481215" target="_blank" class="btn-outline" style="border-color:#34D399;color:#059669;background:#F0FDF9;">📊 Xem Kết Quả</a>
                 <button class="btn-outline red" onclick="logout()">🚪 Đăng xuất</button>
             </div>
         </div>
@@ -445,12 +486,14 @@
                     <span class="lbl">Camera Nhận Diện</span>
                     <div class="cam-rec" id="cam-rec"><div class="cam-rec-dot"></div>REC</div>
                 </div>
-                <div class="cam-wrap">
+                <div class="cam-wrap" id="cam-wrap">
                     <video id="video" autoplay muted playsinline></video>
                     <div class="cb-bl"></div><div class="cb-br"></div>
                     <div class="cam-scan-label" id="cam-lbl">📷 Đang chờ...</div>
+                    <div class="circle-overlay" id="circle-overlay"></div>
+                    <div class="circle-hint" id="circle-hint">👤 Đặt mặt vào khung — nhấn Chụp</div>
                 </div>
-                <div class="cam-foot">Đứng thẳng trước camera — hệ thống tự nhận diện</div>
+                <div class="cam-foot" id="cam-foot">Nhấn "Quét học sinh" để bắt đầu nhận diện</div>
                 <div id="cam-controls-wrap">
                     <div style="padding:10px 14px 14px">
                         <button class="btn-start-cam" id="btn-start-cam" onclick="startCamManual()">📷 Bật Camera</button>
@@ -459,6 +502,12 @@
                         <button class="btn-cam-toggle active" id="btn-front" onclick="switchCamera('user')">🤳 Camera trước</button>
                         <button class="btn-cam-toggle" id="btn-back" onclick="switchCamera('environment')">📷 Camera sau</button>
                         <span class="cam-mode-label" id="cam-mode-label">Camera trước</span>
+                    </div>
+                    <div class="btn-scan-wrap" id="btn-scan-wrap" style="display:none">
+                        <button class="btn-scan-trigger" id="btn-scan-trigger" onclick="triggerScan()">
+                            <span id="scan-btn-ico">🔍</span>
+                            <span id="scan-btn-txt">Quét học sinh</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -588,6 +637,7 @@
 
     let currentFacing = 'user';
     let currentStream = null;
+    let scanLoopActive = false;
 
     async function initAI() {
         aiLoaded = true;
@@ -629,9 +679,9 @@
 
     async function startCamera(facing) {
         currentFacing = facing;
+        scanLoopActive = false; // dừng loop cũ
         setStatus('📷','Đang bật camera...');
 
-        // Tắt stream cũ nếu có
         if (currentStream) {
             currentStream.getTracks().forEach(t => t.stop());
             currentStream = null;
@@ -639,7 +689,7 @@
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } }
+                video: { facingMode: facing, width: { ideal: 480 }, height: { ideal: 360 } }
             });
             currentStream = stream;
             video.srcObject = stream;
@@ -650,14 +700,14 @@
             document.getElementById('cam-lbl').innerText = '🔴 Đang quét mặt';
             document.getElementById('cam-controls').classList.remove('hidden');
             document.getElementById('btn-start-cam').classList.remove('show');
-
-            // Cập nhật nút active
             document.getElementById('btn-front').classList.toggle('active', facing === 'user');
             document.getElementById('btn-back').classList.toggle('active', facing === 'environment');
             document.getElementById('cam-mode-label').innerText = facing === 'user' ? 'Camera trước' : 'Camera sau';
 
-            setStatus('👁️','Hệ thống đang quét — Đứng trước camera', true);
-            scan();
+            setStatus('👁️','Camera sẵn sàng — Nhấn "Quét học sinh" để nhận diện', false);
+            isScanning = false;
+            document.getElementById('btn-scan-wrap').style.display = 'block';
+            // KHÔNG gọi scan() tự động nữa
         } catch(err) {
             let msg = 'Không bật được Camera!';
             if (err.name === 'NotAllowedError')  msg = '🚫 Chưa cấp quyền camera. Vào Cài đặt trình duyệt để cho phép.';
@@ -670,40 +720,79 @@
 
     window.switchCamera = (facing) => {
         if (facing === currentFacing) return;
-        isScanning = false;
-        startCamera(facing).then(() => { isScanning = true; });
+        startCamera(facing);
     };
 
-    async function scan() {
-        const matcher = new faceapi.FaceMatcher(descriptors, 0.45);
+    // Khi bấm nút Quét — hiện vòng tròn, chụp 1 frame, nhận diện
+    window.triggerScan = async () => {
+        const btn     = document.getElementById('btn-scan-trigger');
+        const circle  = document.getElementById('circle-overlay');
+        const hint    = document.getElementById('circle-hint');
+        const camWrap = document.getElementById('cam-wrap');
+
+        if (btn.disabled) return;
+        btn.disabled = true;
+        document.getElementById('scan-btn-ico').innerText = '⏳';
+        document.getElementById('scan-btn-txt').innerText = 'Đang nhận diện...';
+
+        // Hiện khung tròn
+        circle.classList.add('show');
+        hint.classList.add('show');
+        camWrap.classList.add('capture-mode');
+        setStatus('🔍', 'Đang nhận diện khuôn mặt...', false);
+
+        // Chờ 1 chút để user đặt mặt vào khung (600ms)
+        await new Promise(r => setTimeout(r, 600));
+
         const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         const opts = new faceapi.TinyFaceDetectorOptions({
             inputSize: isMobileDevice ? 224 : 320,
             scoreThreshold: 0.5
         });
-        let running = false;
 
-        async function loop() {
-            if (!isScanning || running || video.readyState < 2) {
-                setTimeout(loop, 300); return;
-            }
-            running = true;
-            try {
-                const det = await faceapi.detectSingleFace(video, opts)
-                    .withFaceLandmarks().withFaceDescriptor();
-                if (det && isScanning) {
-                    const r = matcher.findBestMatch(det.descriptor);
-                    if (r.label !== 'unknown') {
-                        const [ten, lop, coSo] = r.label.split('|');
-                        showPopup(ten, lop, coSo);
-                    }
+        try {
+            if (video.readyState < 2) throw new Error('video not ready');
+            const matcher = new faceapi.FaceMatcher(descriptors, 0.45);
+            const det = await faceapi.detectSingleFace(video, opts)
+                .withFaceLandmarks().withFaceDescriptor();
+
+            if (det) {
+                const r = matcher.findBestMatch(det.descriptor);
+                if (r.label !== 'unknown') {
+                    const [ten, lop, coSo] = r.label.split('|');
+                    // Ẩn khung tròn trước khi hiện popup
+                    circle.classList.remove('show');
+                    hint.classList.remove('show');
+                    camWrap.classList.remove('capture-mode');
+                    showPopup(ten, lop, coSo);
+                } else {
+                    setStatus('❓', 'Không tìm thấy học sinh trong hệ thống — Thử lại!', false);
+                    resetScanBtn();
                 }
-            } catch(e) {}
-            running = false;
-            setTimeout(loop, isMobileDevice ? 1000 : 700);
+            } else {
+                setStatus('⚠️', 'Không thấy mặt người — Đặt mặt vào khung tròn và thử lại!', false);
+                resetScanBtn();
+            }
+        } catch(e) {
+            setStatus('⚠️', 'Lỗi nhận diện — Thử lại!', false);
+            resetScanBtn();
         }
-        loop();
+    };
+
+    function resetScanBtn() {
+        const circle  = document.getElementById('circle-overlay');
+        const hint    = document.getElementById('circle-hint');
+        const camWrap = document.getElementById('cam-wrap');
+        circle.classList.remove('show');
+        hint.classList.remove('show');
+        camWrap.classList.remove('capture-mode');
+        const btn = document.getElementById('btn-scan-trigger');
+        btn.disabled = false;
+        document.getElementById('scan-btn-ico').innerText = '🔍';
+        document.getElementById('scan-btn-txt').innerText = 'Quét học sinh';
     }
+
+    async function scan() {} // giữ lại để không lỗi nếu còn gọi ở đâu đó
 
     // CẬP NHẬT: Nhận thêm biến coSo
     function showPopup(ten, lop, coSo) {
@@ -722,8 +811,8 @@
         popup.style.display = 'none'; overlay.style.display = 'none';
         document.getElementById('input-benh').value = '';
         document.getElementById('input-thuoc').value = '';
-        isScanning = true;
-        setStatus('👁️','Hệ thống đang quét — Đứng trước camera',true);
+        resetScanBtn();
+        setStatus('👁️','Camera sẵn sàng — Nhấn "Quét học sinh" để nhận diện', false);
     };
 
     window.submitHealthData = async () => {
@@ -745,12 +834,12 @@
                     Thuoc: thuoc || 'Không dùng thuốc'
                 })
             });
-            alert(`✅ Đã ghi sổ y tế cho: ${student.ten}`);
+        setStatus('✅',`✅ Đã ghi sổ y tế: ${student.ten} — Nhấn Quét để tiếp tục`, false);
+        setTimeout(() => setStatus('👁️','Camera sẵn sàng — Nhấn "Quét học sinh" để nhận diện', false), 3000);
         } catch { alert('❌ Lỗi kết nối Google Sheets!'); }
         document.getElementById('input-benh').value = '';
         document.getElementById('input-thuoc').value = '';
-        isScanning = true;
-        setStatus('👁️','Hệ thống đang quét — Đứng trước camera',true);
+        resetScanBtn();
     };
 </script>
 </body>
