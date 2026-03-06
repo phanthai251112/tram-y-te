@@ -240,10 +240,13 @@
 
         const btn = document.getElementById('btn-save');
         btn.disabled = true;
-        btn.textContent = '⏳ Đang xử lý Face++...';
-        setStatus('info', '🔄 Đang gửi ảnh lên Face++ nhận diện...');
+        btn.textContent = '⏳ Đang kiểm tra...';
+        setStatus('info', '🔍 Đang kiểm tra trùng lặp...');
 
         try {
+            btn.textContent = '⏳ Đang xử lý Face++...';
+            setStatus('info', '🔄 Đang gửi ảnh lên Face++ nhận diện...');
+
             const res = await fetch(PROXY_URL, {
                 method: 'POST',
                 headers: {'Content-Type':'application/json'},
@@ -256,7 +259,7 @@
             const data = await res.json();
 
             if (data.error === 'DUPLICATE_FACE') {
-                setStatus('error', `⚠️ Khuôn mặt này đã có trong hệ thống (${Math.round(data.confidence)}% giống)! Không lưu trùng.`);
+                setStatus('error', `⚠️ Khuôn mặt đã tồn tại trong hệ thống — ${data.existName} (${data.confidence}% giống)! Không lưu trùng dù khác cơ sở.`);
                 btn.disabled = false;
                 btn.textContent = '💾 Lưu học sinh vào Face++';
                 return;
