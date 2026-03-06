@@ -440,20 +440,26 @@
 
             const best = data.results[0];
             const confidence = Math.round(best.confidence);
-            const faceToken = best.face_token;
 
             if (confidence < CONFIDENCE_THRESHOLD) {
                 setStatus('❓', `Độ tin cậy thấp (${confidence}%) — Thử lại với ánh sáng tốt hơn!`);
                 resetScanBtn(); return;
             }
 
-            const info = studentMap[faceToken];
-            if (!info) {
-                setStatus('❓', 'Không tìm thấy thông tin học sinh trong Firebase — Kiểm tra lại!');
-                resetScanBtn(); return;
+            // Dùng user_id (ten|lop|coSo) trả về trực tiếp từ Face++
+            const userId = best.user_id;
+            if (userId && userId.includes('|')) {
+                const [ten, lop, coSo] = userId.split('|');
+                showPopup(ten, lop, coSo, confidence);
+            } else {
+                // Fallback: tra Firebase theo face_token
+                const info = studentMap[best.face_token];
+                if (!info) {
+                    setStatus('❓', 'Không tìm thấy thông tin học sinh — Nhập liệu lại!');
+                    resetScanBtn(); return;
+                }
+                showPopup(info.ten, info.lop, info.coSo, confidence);
             }
-
-            showPopup(info.ten, info.lop, info.coSo, confidence);
 
         } catch(e) {
             circle.classList.remove('show');
