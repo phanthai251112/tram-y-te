@@ -642,7 +642,7 @@
     async function initAI() {
         aiLoaded = true;
         setStatus('🧠','Đang tải AI & dữ liệu học sinh...');
-        const W = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+        const W = './weights';
         try {
             await faceapi.nets.tinyFaceDetector.loadFromUri(W);
             await faceapi.nets.faceLandmark68Net.loadFromUri(W);
@@ -752,7 +752,7 @@
 
         try {
             if (video.readyState < 2) throw new Error('video not ready');
-            const matcher = new faceapi.FaceMatcher(descriptors, 0.45);
+            const matcher = new faceapi.FaceMatcher(descriptors, 0.3);
             const det = await faceapi.detectSingleFace(video, opts)
                 .withFaceLandmarks().withFaceDescriptor();
 
