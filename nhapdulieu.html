@@ -594,7 +594,7 @@
         setStatus('🧠','Đang tải AI nhận diện khuôn mặt...');
         document.getElementById('cnt-today').innerText = todayCount;
 
-        const W = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+        const W = './weights';
         try {
             await Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri(W),
