@@ -587,7 +587,6 @@
         appId: "1:400060011950:web:a8e6512ab6d18b29cde43f"
     };
     
-    // CẬP NHẬT: Link Google Sheet mới nhất của sếp
     const SHEET_URL = "https://script.google.com/macros/s/AKfycbwsEcL-JKI4T0xWw33BSTPN9bpCtzDS3s5Rx4rDMb9MCqVKJW2-YrVzkYbQOYUcMLh8EA/exec";
 
     const app  = initializeApp(firebaseConfig);
@@ -649,19 +648,33 @@
             await faceapi.nets.faceRecognitionNet.loadFromUri(W);
         } catch(e) {
             setStatus('❌','Lỗi tải AI. Kiểm tra kết nối mạng và thử lại.');
+            console.error(e);
             return;
         }
         document.getElementById('ai-lbl').innerText = 'AI đã sẵn sàng';
 
         const snap = await getDocs(collection(db,'DuLieuKhuonMat'));
-        descriptors = snap.docs.map(d => {
+        descriptors = [];
+        
+        snap.docs.forEach(d => {
             const v = d.data();
-            // CẬP NHẬT: Nhét thêm biến coSo vào chuỗi định dạng của bộ não AI
-            const coSo = v.coSo || "CS1 Trường TH-THCS VICTORIA THĂNG LONG"; 
-            return new faceapi.LabeledFaceDescriptors(`${v.ten}|${v.lop}|${coSo}`,[new Float32Array(v.descriptor)]);
+            // CẬP NHẬT: Xử lý dữ liệu sạch (trim khoảng trắng thừa)
+            const ten = (v.ten || "").trim();
+            const lop = (v.lop || "").trim();
+            const coSo = (v.coSo || "CS1 Trường TH-THCS VICTORIA THĂNG LONG").trim(); 
+            
+            // Tạo chuỗi định danh duy nhất: "Tên|Lớp|Cơ Sở"
+            const label = `${ten}|${lop}|${coSo}`;
+            
+            descriptors.push(new faceapi.LabeledFaceDescriptors(label, [new Float32Array(v.descriptor)]));
         });
         
-        if (!descriptors.length) { setStatus('⚠️','Chưa có dữ liệu học sinh. Sang Cổng Nhập Liệu!'); return; }
+        console.log("✅ Đã tải", descriptors.length, "học sinh vào bộ nhớ AI.");
+        
+        if (!descriptors.length) { 
+            setStatus('⚠️','Chưa có dữ liệu học sinh. Vui lòng nhập liệu trước!'); 
+            return; 
+        }
 
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile) {
@@ -679,7 +692,7 @@
 
     async function startCamera(facing) {
         currentFacing = facing;
-        scanLoopActive = false; // dừng loop cũ
+        scanLoopActive = false; 
         setStatus('📷','Đang bật camera...');
 
         if (currentStream) {
@@ -707,11 +720,10 @@
             setStatus('👁️','Camera sẵn sàng — Nhấn "Quét học sinh" để nhận diện', false);
             isScanning = false;
             document.getElementById('btn-scan-wrap').style.display = 'block';
-            // KHÔNG gọi scan() tự động nữa
         } catch(err) {
             let msg = 'Không bật được Camera!';
-            if (err.name === 'NotAllowedError')  msg = '🚫 Chưa cấp quyền camera. Vào Cài đặt trình duyệt để cho phép.';
-            if (err.name === 'NotFoundError')     msg = '📵 Không tìm thấy camera trên thiết bị này.';
+            if (err.name === 'NotAllowedError')  msg = '🚫 Chưa cấp quyền camera.';
+            if (err.name === 'NotFoundError')     msg = '📵 Không tìm thấy camera.';
             if (err.name === 'NotReadableError')  msg = '⚠️ Camera đang được dùng bởi ứng dụng khác.';
             setStatus('❌', msg);
             alert(msg);
@@ -723,7 +735,6 @@
         startCamera(facing);
     };
 
-    // Khi bấm nút Quét — hiện vòng tròn, chụp 1 frame, nhận diện
     window.triggerScan = async () => {
         const btn     = document.getElementById('btn-scan-trigger');
         const circle  = document.getElementById('circle-overlay');
@@ -735,13 +746,11 @@
         document.getElementById('scan-btn-ico').innerText = '⏳';
         document.getElementById('scan-btn-txt').innerText = 'Đang nhận diện...';
 
-        // Hiện khung tròn
         circle.classList.add('show');
         hint.classList.add('show');
         camWrap.classList.add('capture-mode');
         setStatus('🔍', 'Đang nhận diện khuôn mặt...', false);
 
-        // Chờ 1 chút để user đặt mặt vào khung (600ms)
         await new Promise(r => setTimeout(r, 600));
 
         const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -752,18 +761,31 @@
 
         try {
             if (video.readyState < 2) throw new Error('video not ready');
-            const matcher = new faceapi.FaceMatcher(descriptors, 0.3);
+            
+            // CẬP NHẬT: Tăng threshold từ 0.3 lên 0.6 để nhận diện chính xác hơn
+            const matcher = new faceapi.FaceMatcher(descriptors, 0.6);
+            
             const det = await faceapi.detectSingleFace(video, opts)
                 .withFaceLandmarks().withFaceDescriptor();
 
             if (det) {
                 const r = matcher.findBestMatch(det.descriptor);
+                
+                // Debug: Xem kết quả match trong console
+                console.log("Kết quả nhận diện:", r);
+
                 if (r.label !== 'unknown') {
-                    const [ten, lop, coSo] = r.label.split('|');
+                    // Xử lý chuỗi label để lấy thông tin
+                    const parts = r.label.split('|');
+                    const ten = parts[0] || "Không rõ tên";
+                    const lop = parts[1] || "Không rõ lớp";
+                    const coSo = parts[2] || "CS1 Trường TH-THCS VICTORIA THĂNG LONG";
+
                     // Ẩn khung tròn trước khi hiện popup
                     circle.classList.remove('show');
                     hint.classList.remove('show');
                     camWrap.classList.remove('capture-mode');
+                    
                     showPopup(ten, lop, coSo);
                 } else {
                     setStatus('❓', 'Không tìm thấy học sinh trong hệ thống — Thử lại!', false);
@@ -774,6 +796,7 @@
                 resetScanBtn();
             }
         } catch(e) {
+            console.error(e);
             setStatus('⚠️', 'Lỗi nhận diện — Thử lại!', false);
             resetScanBtn();
         }
@@ -792,15 +815,12 @@
         document.getElementById('scan-btn-txt').innerText = 'Quét học sinh';
     }
 
-    async function scan() {} // giữ lại để không lỗi nếu còn gọi ở đâu đó
-
-    // CẬP NHẬT: Nhận thêm biến coSo
     function showPopup(ten, lop, coSo) {
         isScanning = false; 
         student = {ten, lop, coSo}; 
         document.getElementById('student-name').innerText = ten;
         document.getElementById('student-class').innerText = 'Lớp: ' + lop;
-        document.getElementById('student-coso').innerText = coSo; // Hiển thị cơ sở lên màn hình popup
+        document.getElementById('student-coso').innerText = coSo;
         
         overlay.style.display = 'block'; popup.style.display = 'block';
         setStatus('✅',`Nhận diện: ${ten} — ${lop}`);
@@ -819,10 +839,11 @@
         const benh = document.getElementById('input-benh').value.trim();
         const thuoc = document.getElementById('input-thuoc').value.trim();
         if (!benh) { alert('Vui lòng nhập tình trạng bệnh!'); return; }
+        
         popup.style.display = 'none'; overlay.style.display = 'none';
         setStatus('💾',`Đang lưu sổ y tế cho ${student.ten}...`);
+        
         try {
-            // CẬP NHẬT: Gắn kèm biến CoSo vào Payload để gửi về Google Sheets
             await fetch(SHEET_URL,{
                 method:'POST', mode:'no-cors', cache:'no-cache',
                 headers:{'Content-Type':'application/json'},
@@ -834,9 +855,11 @@
                     Thuoc: thuoc || 'Không dùng thuốc'
                 })
             });
-        setStatus('✅',`✅ Đã ghi sổ y tế: ${student.ten} — Nhấn Quét để tiếp tục`, false);
-        setTimeout(() => setStatus('👁️','Camera sẵn sàng — Nhấn "Quét học sinh" để nhận diện', false), 3000);
-        } catch { alert('❌ Lỗi kết nối Google Sheets!'); }
+            setStatus('✅',`✅ Đã ghi sổ y tế: ${student.ten} — Nhấn Quét để tiếp tục`, false);
+            setTimeout(() => setStatus('👁️','Camera sẵn sàng — Nhấn "Quét học sinh" để nhận diện', false), 3000);
+        } catch { 
+            alert('❌ Lỗi kết nối Google Sheets!'); 
+        }
         document.getElementById('input-benh').value = '';
         document.getElementById('input-thuoc').value = '';
         resetScanBtn();
