@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trạm Y Tế Tự Động — Victoria Thăng Long 3</title>
     <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4/face_detection.js" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -639,28 +640,49 @@
     let currentStream = null;
     let scanLoopActive = false;
 
+    let mpFaceDetection = null;
+
     async function initAI() {
         aiLoaded = true;
         setStatus('🧠','Đang tải AI & dữ liệu học sinh...');
-        const W = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
-        try {
-            await faceapi.nets.tinyFaceDetector.loadFromUri(W);
-            await faceapi.nets.faceLandmark68Net.loadFromUri(W);
-            await faceapi.nets.faceRecognitionNet.loadFromUri(W);
-        } catch(e) {
-            setStatus('❌','Lỗi tải AI. Kiểm tra kết nối mạng và thử lại.');
-            return;
+
+        // Load face-api weights
+        const W1 = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+        const W2 = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+        let loaded = false;
+        for (const W of [W1, W2]) {
+            try {
+                await Promise.all([
+                    faceapi.nets.faceLandmark68Net.loadFromUri(W),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(W),
+                    faceapi.nets.tinyFaceDetector.loadFromUri(W)
+                ]);
+                loaded = true; break;
+            } catch(e) {}
         }
+        if (!loaded) { setStatus('❌','Lỗi tải AI. Kiểm tra kết nối mạng.'); return; }
+
+        // Khởi động MediaPipe Face Detection
+        try {
+            mpFaceDetection = new FaceDetection({
+                locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4/${f}`
+            });
+            mpFaceDetection.setOptions({ model: 'short', minDetectionConfidence: 0.6 });
+            mpFaceDetection.onResults(() => {});
+            const warmup = document.createElement('canvas');
+            warmup.width = 10; warmup.height = 10;
+            await mpFaceDetection.send({image: warmup});
+        } catch(e) { mpFaceDetection = null; } // fallback nếu MediaPipe lỗi
+
         document.getElementById('ai-lbl').innerText = 'AI đã sẵn sàng';
 
         const snap = await getDocs(collection(db,'DuLieuKhuonMat'));
         descriptors = snap.docs.map(d => {
             const v = d.data();
-            // CẬP NHẬT: Nhét thêm biến coSo vào chuỗi định dạng của bộ não AI
-            const coSo = v.coSo || "CS1 Trường TH-THCS VICTORIA THĂNG LONG"; 
+            const coSo = v.coSo || "CS1 Trường TH-THCS VICTORIA THĂNG LONG";
             return new faceapi.LabeledFaceDescriptors(`${v.ten}|${v.lop}|${coSo}`,[new Float32Array(v.descriptor)]);
         });
-        
+
         if (!descriptors.length) { setStatus('⚠️','Chưa có dữ liệu học sinh. Sang Cổng Nhập Liệu!'); return; }
 
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -670,6 +692,39 @@
         } else {
             startCamera('user');
         }
+    }
+
+    // MediaPipe detect → crop mặt → face-api lấy descriptor
+    async function detectAndDescribe(videoEl) {
+        if (mpFaceDetection && videoEl.videoWidth > 0) {
+            const mpResult = await new Promise(res => {
+                mpFaceDetection.onResults(r => res(r));
+                mpFaceDetection.send({image: videoEl}).catch(() => res(null));
+            });
+            if (mpResult && mpResult.detections && mpResult.detections.length > 0) {
+                const box = mpResult.detections[0].boundingBox;
+                const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+                const pad = 0.25;
+                const x = Math.max(0, (box.xCenter - box.width/2 - pad*box.width) * vw);
+                const y = Math.max(0, (box.yCenter - box.height/2 - pad*box.height) * vh);
+                const w = Math.min(vw - x, (box.width + 2*pad*box.width) * vw);
+                const h = Math.min(vh - y, (box.height + 2*pad*box.height) * vh);
+                const canvas = document.createElement('canvas');
+                canvas.width = 160; canvas.height = 160;
+                canvas.getContext('2d').drawImage(videoEl, x, y, w, h, 0, 0, 160, 160);
+                try {
+                    const r = await faceapi.detectSingleFace(canvas,
+                        new faceapi.TinyFaceDetectorOptions({inputSize:160,scoreThreshold:0.4}))
+                        .withFaceLandmarks().withFaceDescriptor();
+                    if (r) return r;
+                } catch(e) {}
+            }
+        }
+        // Fallback: face-api thuần
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        return faceapi.detectSingleFace(videoEl,
+            new faceapi.TinyFaceDetectorOptions({inputSize: isMobile?224:320, scoreThreshold:0.5}))
+            .withFaceLandmarks().withFaceDescriptor();
     }
 
     window.startCamManual = () => {
@@ -744,36 +799,32 @@
         // Chờ 1 chút để user đặt mặt vào khung (600ms)
         await new Promise(r => setTimeout(r, 600));
 
-        const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const opts = new faceapi.TinyFaceDetectorOptions({
-            inputSize: isMobileDevice ? 224 : 320,
-            scoreThreshold: 0.5
-        });
-
         try {
             if (video.readyState < 2) throw new Error('video not ready');
             const matcher = new faceapi.FaceMatcher(descriptors, 0.45);
-            const det = await faceapi.detectSingleFace(video, opts)
-                .withFaceLandmarks().withFaceDescriptor();
+            const det = await detectAndDescribe(video);
+
+            circle.classList.remove('show');
+            hint.classList.remove('show');
+            camWrap.classList.remove('capture-mode');
 
             if (det) {
                 const r = matcher.findBestMatch(det.descriptor);
                 if (r.label !== 'unknown') {
                     const [ten, lop, coSo] = r.label.split('|');
-                    // Ẩn khung tròn trước khi hiện popup
-                    circle.classList.remove('show');
-                    hint.classList.remove('show');
-                    camWrap.classList.remove('capture-mode');
                     showPopup(ten, lop, coSo);
                 } else {
                     setStatus('❓', 'Không tìm thấy học sinh trong hệ thống — Thử lại!', false);
                     resetScanBtn();
                 }
             } else {
-                setStatus('⚠️', 'Không thấy mặt người — Đặt mặt vào khung tròn và thử lại!', false);
+                setStatus('⚠️', 'Không thấy mặt — Đặt mặt vào khung tròn và thử lại!', false);
                 resetScanBtn();
             }
         } catch(e) {
+            circle.classList.remove('show');
+            hint.classList.remove('show');
+            camWrap.classList.remove('capture-mode');
             setStatus('⚠️', 'Lỗi nhận diện — Thử lại!', false);
             resetScanBtn();
         }
