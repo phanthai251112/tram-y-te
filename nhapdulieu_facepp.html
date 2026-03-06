@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" translate="no">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nhập Liệu Face++ — Victoria Thăng Long 3</title>
+    <title>Nhập Dữ Liệu Học Sinh — Victoria Thăng Long 3</title>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -78,10 +78,10 @@
 
 <div class="header">
     <div class="brand">
-        <div class="brand-logo">🏥</div>
+        <div class="brand-logo">🏫</div>
         <div>
-            <div class="brand-name">Nhập Liệu Face++</div>
-            <div class="brand-sub">Dữ liệu khuôn mặt học sinh</div>
+            <div class="brand-name">Victoria Thăng Long 3</div>
+            <div class="brand-sub">Cổng Quản Trị Hệ Thống</div>
         </div>
     </div>
     <div class="badge">⚡ Face++ AI</div>
@@ -132,8 +132,9 @@
                 <label class="flabel">Cơ sở</label>
                 <select id="inp-coso" class="fsel">
                     <option value="CS1 Trường TH-THCS VICTORIA THĂNG LONG">CS1 Trường TH-THCS VICTORIA THĂNG LONG</option>
-                    <option value="CS2 Trường TH VICTORIA THĂNG LONG 2">CS2 Trường TH VICTORIA THĂNG LONG 2</option>
-                    <option value="CS3 Trường TH VICTORIA THĂNG LONG 3">CS3 Trường TH VICTORIA THĂNG LONG 3</option>
+                    <option value="CS2 TRƯỜNG MẦM NON VICTORIA THĂNG LONG">CS2 TRƯỜNG MẦM NON VICTORIA THĂNG LONG</option>
+                    <option value="CS3 TRƯỜNG TH-THCS VICTORIA THĂNG LONG 3">CS3 TRƯỜNG TH-THCS VICTORIA THĂNG LONG 3</option>
+                    <option value="CS4 TRƯỜNG MẦM NON VICTORIA THĂNG LONG 3">CS4 TRƯỜNG MẦM NON VICTORIA THĂNG LONG 3</option>
                 </select>
             </div>
             <button class="btn-save" id="btn-save" onclick="saveStudent()" disabled>💾 Lưu học sinh vào Face++</button>
@@ -142,11 +143,11 @@
 
 </div>
 
-<footer><strong>Victoria Thăng Long 3</strong> · Hệ thống Y tế Học đường · VIC Group © 2025</footer>
+<footer><strong>Victoria Thăng Long 3</strong> · Cổng Quản Trị Nhập Liệu · VIC Group © 2025</footer>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const PROXY_URL = "https://phanthai25--bdc8dcbc193811f185d642dde27851f2.web.val.run";
 
@@ -261,10 +262,21 @@
                 return;
             }
 
-            // Lưu face_token vào Firebase
+            // Kiểm tra trùng face_token
+            const faceToken = data.face_token;
+            const dupCheck = await getDocs(query(collection(db, 'DuLieuFacePP'), where('face_token', '==', faceToken)));
+            if (!dupCheck.empty) {
+                setStatus('error', `⚠️ Khuôn mặt này đã được lưu trước đó!`);
+                btn.disabled = false;
+                btn.textContent = '💾 Lưu học sinh vào Face++';
+                return;
+            }
+            // Lưu vào Firebase với field names cố định
             await addDoc(collection(db, 'DuLieuFacePP'), {
-                ten, lop, coSo,
-                face_token: data.face_token,
+                ten: ten,
+                lop: lop,
+                coSo: coSo,
+                face_token: faceToken,
                 createdAt: new Date().toISOString()
             });
 
