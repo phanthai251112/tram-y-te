@@ -444,7 +444,7 @@
         await new Promise(r => setTimeout(r, 600));
         try {
             if (video.readyState < 2) throw new Error('video not ready');
-            const matcher = new faceapi.FaceMatcher(descriptors, 0.45);
+            const matcher = new faceapi.FaceMatcher(descriptors, 0.40);
             const det = await detectAndDescribe(video);
             circle.classList.remove('show');
             hint.classList.remove('show');
