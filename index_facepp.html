@@ -407,11 +407,13 @@
         await new Promise(r => setTimeout(r, 600));
 
         try {
-            // Chụp frame từ video
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d', {willReadFrequently:true}).drawImage(video, 0, 0);
-            const imageBase64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+            // Chụp frame, resize về 640px để Face++ nhận tốt
+            const MAX = 640;
+            const scale = Math.min(MAX / video.videoWidth, MAX / video.videoHeight, 1);
+            canvas.width  = Math.round(video.videoWidth  * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            canvas.getContext('2d', {willReadFrequently:true}).drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageBase64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
 
             circle.classList.remove('show');
             hint.classList.remove('show');
