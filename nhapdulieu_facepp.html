@@ -244,6 +244,26 @@
         setStatus('info', '🔍 Đang kiểm tra trùng lặp...');
 
         try {
+            btn.textContent = '⏳ Đang kiểm tra Firebase...';
+            setStatus('info', '🔍 Đang kiểm tra dữ liệu cũ...');
+
+            // Check Firebase trước — nếu có rồi thì xóa mặt cũ trên Face++
+            const coSo = document.getElementById('inp-coso').value;
+            const existSnap = await getDocs(query(collection(db, 'DuLieuFacePP'), where('ten', '==', ten), where('lop', '==', lop), where('coSo', '==', coSo)));
+            let oldFaceToken = null;
+            if (!existSnap.empty) {
+                oldFaceToken = existSnap.docs[0].data().face_token;
+                setStatus('info', '🔄 Đã có dữ liệu cũ — đang xóa mặt cũ trên Face++...');
+                if (oldFaceToken) {
+                    await fetch(PROXY_URL, {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ action: 'removeFace', faceToken: oldFaceToken })
+                    });
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+
             btn.textContent = '⏳ Đang xử lý Face++...';
             setStatus('info', '🔄 Đang gửi ảnh lên Face++ nhận diện...');
 
