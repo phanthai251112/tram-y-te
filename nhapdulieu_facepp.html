@@ -147,7 +147,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, query, where, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const PROXY_URL = "https://phanthai25--bdc8dcbc193811f185d642dde27851f2.web.val.run";
 
@@ -255,6 +255,12 @@
             });
             const data = await res.json();
 
+            if (data.error === 'DUPLICATE_FACE') {
+                setStatus('error', `⚠️ Khuôn mặt này đã có trong hệ thống (${Math.round(data.confidence)}% giống)! Không lưu trùng.`);
+                btn.disabled = false;
+                btn.textContent = '💾 Lưu học sinh vào Face++';
+                return;
+            }
             if (data.error) {
                 setStatus('error', '❌ ' + data.error);
                 btn.disabled = false;
@@ -262,21 +268,13 @@
                 return;
             }
 
-            // Kiểm tra trùng face_token
-            const faceToken = data.face_token;
-            const dupCheck = await getDocs(query(collection(db, 'DuLieuFacePP'), where('face_token', '==', faceToken)));
-            if (!dupCheck.empty) {
-                setStatus('error', `⚠️ Khuôn mặt này đã được lưu trước đó!`);
-                btn.disabled = false;
-                btn.textContent = '💾 Lưu học sinh vào Face++';
-                return;
-            }
-            // Lưu vào Firebase với field names cố định
-            await addDoc(collection(db, 'DuLieuFacePP'), {
+            // Lưu với ID = coSo - lop - ten (dễ nhận dạng, tự động ghi đè nếu trùng)
+            const docId = `${coSo} - ${lop} - ${ten}`.replace(/[^a-zA-Z0-9\-_ àáảãạăắặẳẵằâấầậẩẫđêếềệểễôốồộổỗơớờợởỡưứừựửữùúủũụ]/gi, '_');
+            await setDoc(doc(db, 'DuLieuFacePP', docId), {
                 ten: ten,
                 lop: lop,
                 coSo: coSo,
-                face_token: faceToken,
+                face_token: data.face_token,
                 createdAt: new Date().toISOString()
             });
 
