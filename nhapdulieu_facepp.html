@@ -199,7 +199,7 @@
         canvas.getContext('2d', {willReadFrequently:true}).drawImage(video, 0, 0);
         
         // Lấy base64 bỏ header "data:image/png;base64,"
-        const full = canvas.toDataURL('image/jpeg', 0.85);
+        const full = canvas.toDataURL('image/jpeg', 0.95);
         capturedBase64 = full.split(',')[1];
 
         // Hiện preview
