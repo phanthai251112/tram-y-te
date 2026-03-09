@@ -569,6 +569,7 @@
         document.getElementById('cnt-today').innerText = todayCount;
 
         try {
+            const Human = window.Human || globalThis.Human;
             humanInst = new Human({
                 modelBasePath: 'https://cdn.jsdelivr.net/gh/vladmandic/human-models/models/',
                 filter: { enabled: false },
