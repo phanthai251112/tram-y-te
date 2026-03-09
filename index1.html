@@ -297,7 +297,7 @@
         return dot / (Math.sqrt(na) * Math.sqrt(nb));
     }
 
-    function findBestMatch(embedding, threshold = 0.40) {
+    function findBestMatch(embedding, threshold = 0.60) {
         let best = null, bestScore = -1;
         for (const db of faceDB) {
             const sim = cosineSim(embedding, db.embedding);
