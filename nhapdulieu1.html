@@ -379,7 +379,7 @@
             </div>
         </div>
         <nav class="breadcrumb">
-            <a href="index.html" class="bc-link">🏥 Trạm Quét</a>
+            <a href="index1.html" class="bc-link">🏥 Trạm Quét</a>
             <span class="sep">›</span>
             <span class="cur">⚙️ Nhập Liệu</span>
         </nav>
@@ -412,7 +412,7 @@
                 <div class="page-date" id="cur-date"></div>
             </div>
             <div class="btn-row">
-                <a href="index1.html" class="btn-ghost">← Trạm Quét</a>
+                <a href="index.html" class="btn-ghost">← Trạm Quét</a>
                 <button class="btn-ghost red" onclick="logout()">🚪 Đăng xuất</button>
             </div>
         </div>
@@ -755,12 +755,23 @@
         btnSave.innerHTML = '<span>⏳</span> Đang phân tích...';
         setStatus('🔍',`Đang phân tích khuôn mặt của ${ten}...`,'save');
 
-        const result = await humanInst.detect(video);
+        // Nếu có ảnh upload thì dùng canvas, không dùng video
+        let detectSource = video;
+        if (uploadedImage) {
+            const img = new Image();
+            await new Promise(res => { img.onload = res; img.src = uploadedImage; });
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            detectSource = canvas;
+        }
+        const result = await humanInst.detect(detectSource);
         if (!result.face || result.face.length === 0 || !result.face[0].embedding?.length) {
-            setStatus('⚠️','Không thấy khuôn mặt — nhìn thẳng camera!','err');
-            alert('⚠️ Không nhận diện được mặt. Hãy nhìn thẳng và đủ sáng!');
+            setStatus('⚠️', uploadedImage ? 'Không thấy mặt trong ảnh — thử ảnh khác!' : 'Không thấy khuôn mặt — nhìn thẳng camera!','err');
+            alert(uploadedImage ? '⚠️ Không nhận diện được mặt trong ảnh. Chọn ảnh rõ mặt hơn!' : '⚠️ Không nhận diện được mặt. Hãy nhìn thẳng và đủ sáng!');
             btnSave.disabled = false;
-            btnSave.innerHTML = '<span>📸</span> Chụp & Lưu Lên Hệ Thống';
+            btnSave.innerHTML = '<span>📸</span> Chụp & Lưu';
             return;
         }
 
