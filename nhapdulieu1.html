@@ -579,7 +579,8 @@
             await humanInst.load();
             await humanInst.warmup();
         } catch(e) {
-            setStatus('❌','Lỗi tải AI. Kiểm tra kết nối mạng.','err');
+            console.error('Human init error:', e);
+            setStatus('❌','Lỗi tải AI: ' + e.message);
             return;
         }
         document.getElementById('ai-st').innerText = '✅';
