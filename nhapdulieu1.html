@@ -267,6 +267,7 @@
         .tip:last-child { margin-bottom: 0; }
 
         /* mobile start cam button */
+        #upload-preview { border-radius: 8px; }
         .btn-start-cam {
             display: none; width: 100%; padding: 13px; margin-top: 10px;
             background: var(--indigo); color: #fff; border: none; border-radius: 10px;
@@ -378,7 +379,7 @@
             </div>
         </div>
         <nav class="breadcrumb">
-            <a href="index1.html" class="bc-link">🏥 Trạm Quét</a>
+            <a href="index.html" class="bc-link">🏥 Trạm Quét</a>
             <span class="sep">›</span>
             <span class="cur">⚙️ Nhập Liệu</span>
         </nav>
@@ -434,11 +435,12 @@
                     <span class="cam-lbl-wrap">Camera Nhập Liệu</span>
                     <div class="live-pill" id="live-pill"><div class="live-dot"></div>LIVE</div>
                 </div>
-                <div class="cam-body">
+                <div class="cam-body" style="position:relative">
                     <video id="video" autoplay muted playsinline></video>
+                    <img id="upload-preview" style="display:none;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;" />
                     <div class="cb-bl"></div><div class="cb-br"></div>
                 </div>
-                <div class="cam-foot">Đặt khuôn mặt học sinh chính giữa — nhìn thẳng — đủ sáng</div>
+                <div class="cam-foot" id="cam-foot">Đặt khuôn mặt học sinh chính giữa — nhìn thẳng — đủ sáng</div>
                 <div id="cam-controls-wrap">
                     <div style="padding:10px 14px 14px">
                         <button class="btn-start-cam" id="btn-start-cam" onclick="startCamManual()">📷 Bật Camera</button>
@@ -474,7 +476,11 @@
                         <input type="text" id="lopHS" class="finp" placeholder="VD: 3A2, 5B1...">
                     </div>
                     <div class="divider"></div>
-                    <button id="btnSave" disabled><span>📸</span> Chụp & Lưu Lên Hệ Thống</button>
+                    <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFileUpload(event)">
+                    <div style="display:flex;gap:8px;">
+                        <button id="btnSave" disabled style="flex:1"><span>📸</span> Chụp & Lưu</button>
+                        <button onclick="document.getElementById('fileInput').click()" style="padding:12px 16px;border-radius:10px;border:1px solid rgba(99,102,241,0.4);background:rgba(99,102,241,0.15);color:#a5b4fc;font-size:13px;cursor:pointer;white-space:nowrap">📁 Tải ảnh</button>
+                    </div>
                 </div>
                 <div class="tips">
                     <div class="tips-title">💡 Lưu ý khi chụp</div>
@@ -595,6 +601,27 @@
             startCamera('user');
         }
     }
+
+    let uploadedImage = null;
+
+    window.handleFileUpload = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            uploadedImage = e.target.result;
+            const preview = document.getElementById('upload-preview');
+            const video = document.getElementById('video');
+            preview.src = uploadedImage;
+            preview.style.display = 'block';
+            video.style.display = 'none';
+            document.getElementById('cam-foot').innerText = '✅ Ảnh đã tải lên — Điền thông tin và nhấn Chụp & Lưu';
+            btnSave.disabled = false;
+            // Tắt camera nếu đang bật
+            if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
+        };
+        reader.readAsDataURL(file);
+    };
 
     window.startCamManual = () => {
         document.getElementById('btn-start-cam').classList.remove('show');
@@ -738,7 +765,7 @@
         }
 
         const newDesc = result.face[0].embedding;
-        const FACE_THRESHOLD = 0.60;
+        const FACE_THRESHOLD = 0.65;
 
         // 1. Kiểm tra trùng MẶT
         let faceDup = null;
@@ -763,6 +790,10 @@
                 });
                 todayCount++;
                 document.getElementById('cnt-today').innerText = todayCount;
+                uploadedImage = null;
+                document.getElementById('upload-preview').style.display = 'none';
+                document.getElementById('video').style.display = 'block';
+                document.getElementById('fileInput').value = '';
                 await loadAllDescriptors();
                 setStatus('✅',`Đã lưu: ${ten} — ${lop}`,'ok');
                 alert(`✅ Thành công! Đã cập nhật vào cơ sở: ${coSo}`);
