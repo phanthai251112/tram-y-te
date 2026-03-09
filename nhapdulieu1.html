@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nhập Dữ Liệu Học Sinh — Victoria Thăng Long 3</title>
-    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/human@3.3.4/dist/human.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -570,7 +570,7 @@
 
         try {
             humanInst = new Human({
-                modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human/models/',
+                modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.3.4/models/',
                 filter: { enabled: false },
                 face: { enabled: true, detector: { enabled: true }, mesh: { enabled: false }, iris: { enabled: false }, description: { enabled: true }, emotion: { enabled: false } },
                 body: { enabled: false }, hand: { enabled: false }, object: { enabled: false }, gesture: { enabled: false },
