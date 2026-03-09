@@ -343,10 +343,12 @@
         aiLoaded = true;
         setStatus('🧠','Đang tải Human AI...');
         try {
+            const Human = window.Human?.Human || window.Human;
             human = new Human(humanConfig);
             await human.load();
             await human.warmup();
         } catch(e) {
+            console.error('Human init error:', e);
             setStatus('❌','Lỗi tải AI: ' + e.message); return;
         }
         document.getElementById('ai-lbl').innerText = 'Human AI ✅';
